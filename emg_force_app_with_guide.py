@@ -10,7 +10,7 @@ import zipfile
 import numpy as np
 import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt 
 from scipy import signal
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib import colors
@@ -25,7 +25,7 @@ from reportlab.platypus import (
     Image
 )
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet 
+from reportlab.lib.styles import getSampleStyleSheet
 
 
 
