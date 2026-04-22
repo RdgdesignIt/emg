@@ -1,9 +1,3 @@
-import streamlit as st
-st.write("VERSIONE TEST 123") 
-
-import os
-st.write("FILES:", os.listdir())
-
 import io
 import re
 import zipfile 
