@@ -1234,7 +1234,7 @@ def create_pdf_report(summary_df, pre_details=None, post_details=None):
     elements.append(Spacer(1, 16))
 
     guida = """
-    <b>GUIDA INTERPRETATIVA</b><br/><br/>
+    <b>GUIDA INTERPRETATIVA prova</b><br/><br/>
 
    🧠 1. STRUTTURA GENERALE
 PRE_mean → media dei trial prima
@@ -1783,119 +1783,277 @@ st.subheader("📘 Guida interpretativa dei risultati")
 
 st.markdown("""
 ## 🧠 1. STRUTTURA GENERALE DEL RISULTATO
-Hai una tabella con:
+🧠 1. STRUTTURA GENERALE
+PRE_mean → media dei trial prima
+POST_mean → media dopo
+Delta → differenza assoluta
+Delta_% → variazione percentuale
 
-- PRE_mean → media dei trial prima  
-- POST_mean → media dei trial dopo vibrazione  
-- Delta → differenza assoluta  
-- Delta_% → variazione percentuale  
+👉 Analisi aggregata multi-trial (approccio scientifico standard)
 
-👉 Quindi stai già facendo una vera analisi scientifica aggregata.
+⚡ 2. EMG – DOMINIO DEL TEMPO
+🔹 RMS (Root Mean Square)
+📌 Formula
+RMS=
+N
+1
+	​
 
----
+i=1
+∑
+N
+	​
 
-## ⚡ 2. ATTIVAZIONE MUSCOLARE (EMG)
+x
+i
+2
+	​
 
-### 🔹 RMS
-Misura l’ampiezza del segnale EMG → numero di unità motorie attive.
+	​
 
-👉 Un aumento indica maggiore attivazione neurale.
+🧠 Significato
+Ampiezza del segnale EMG
+Proporzionale a:
+numero unità motorie attive
+frequenza di scarica
+📊 Interpretazione
+↑ RMS → ↑ attivazione muscolare
+↓ RMS → ↓ attivazione o fatica
+📚 Riferimenti
+De Luca (1997)
+Farina et al. (2004)
+🔹 IEMG (Integrated EMG)
+📌 Formula
+IEMG=
+f
+s
+	​
 
----
+∑∣x(t)∣
+	​
 
-### 🔹 IEMG
-Energia totale del segnale nel tempo.
+🧠 Significato
+Energia totale del segnale nel tempo
+Indice di lavoro muscolare complessivo
+📊 Interpretazione
+↑ IEMG → maggiore lavoro muscolare
+sensibile alla durata della contrazione
+📚 Riferimenti
+Merletti & Parker (2004)
+Konrad (2005)
+🔹 RMS 0–200 ms
+📌 Definizione
 
-👉 Conferma il livello globale di attivazione.
+RMS calcolato nei primi 200 ms dopo onset
 
----
+🧠 Significato
+Capacità di attivazione rapida
+reclutamento iniziale unità motorie
+📊 Interpretazione
+↑ → migliore drive neurale rapido
+fondamentale per esplosività
+📚 Riferimenti
+Aagaard et al. (2002)
+Del Vecchio et al. (2019)
+📊 3. EMG – DOMINIO DELLA FREQUENZA
+🔹 MDF (Median Frequency)
+📌 Formula
+∫
+0
+MDF
+	​
 
-### 🔹 RMS_0_200ms
-Attivazione nei primi 200 ms → esplosività neurale.
+PSD(f)df=
+2
+1
+	​
 
-👉 Indice chiave di reclutamento rapido.
+∫
+0
+f
+max
+	​
 
----
+	​
 
-## 📊 3. DOMINIO FREQUENZA
+PSD(f)df
+🧠 Significato
+Frequenza che divide lo spettro in due
+indice di fatica e tipo di fibre
+📊 Interpretazione
+↓ MDF → fatica
+↑ MDF → maggiore attivazione veloce
+📚 Riferimenti
+De Luca (1984)
+Merletti (1999)
+🔹 MPF (Mean Power Frequency)
+📌 Formula
+MPF=
+∑PSD(f)
+∑f⋅PSD(f)
+	​
 
-### 🔹 MDF / MPF
-Indicatori di fatica e tipo di attivazione.
+🧠 Significato
+Centro di massa dello spettro
+📊 Interpretazione
+simile a MDF
+più sensibile al rumore
+📚 Riferimenti
+Phinyomark et al. (2012)
+🤝 4. CO-CONTRAZIONE
+🔹 CCI (Co-Contraction Index)
+📌 Formula
+CCI=
+A+B
+2⋅min(A,B)
+	​
 
-👉 Frequenze più alte = minore fatica / maggiore efficienza.
+🧠 Significato
+quanto agonista e antagonista lavorano insieme
+📊 Interpretazione
+↑ CCI → rigidità / inefficienza
+↓ CCI → controllo più efficiente
+📚 Riferimenti
+Rudolph et al. (2000)
+💪 5. FORZA – METRICHE BASE
+🔹 Force_peak
+📌 Formula
+F
+peak
+	​
 
----
+=max(F(t))
+🧠 Significato
+Massima forza sviluppata (MVC)
+📚 Riferimenti
+Maffiuletti et al. (2016)
+🔹 Force_mean
+📌 Definizione
 
-## 🤝 4. CO-CONTRAZIONE (CCI)
+Media della forza sopra soglia (es. 50%)
 
-Misura quanto agonista e antagonista lavorano insieme.
+🧠 Significato
+Capacità di mantenere forza
+🔹 Force_CV (Coefficient of Variation)
+📌 Formula
+CV=
+μ
+σ
+	​
 
-👉 Valori più bassi = maggiore efficienza motoria.
+🧠 Significato
+stabilità del segnale
+📊 Interpretazione
+↑ CV → instabilità
+↓ CV → controllo fine
+📚 Riferimenti
+Enoka & Duchateau (2008)
+🔬 6. STABILITÀ DELLA FORZA
+🔹 Tremor 3–7 Hz
+📌 Formula
+∫
+3
+7
+	​
 
----
+PSD(f)df
+🧠 Significato
+oscillazioni fisiologiche
+controllo neuromuscolare
+📚 Riferimenti
+McAuley & Marsden (2000)
+🔹 Sample Entropy (SampEn)
+📌 Formula
+SampEn=−ln(
+B
+A
+	​
 
-## 💪 5. FORZA
+)
+🧠 Significato
+complessità del segnale
+📊 Interpretazione
+↑ → controllo più adattativo
+↓ → segnale rigido
+📚 Riferimenti
+Richman & Moorman (2000)
+🔹 Force Stability Index
+📌 Formula
+Index=100⋅(0.45(1−CV)+0.45(1−Tremor)+0.10(SampEn))
+🧠 Significato
+indice sintetico di stabilità
+🚀 7. ESPLOSIVITÀ
+🔹 RFD (Rate of Force Development)
+📌 Formula
+RFD=
+Δt
+ΔF
+	​
 
-⚠️ Analisi effettuata solo sopra il 50% della forza massima.
+🧠 Significato
+velocità di sviluppo della forza
+📚 Riferimenti
+Maffiuletti et al. (2016)
+🔗 8. ACCOPPIAMENTO EMG–FORZA
+🔹 Correlazione EMG–Forza
+📌 Formula
+r=corr(EMG
+env
+	​
 
-### 🔹 Force_peak
-Forza massima → capacità assoluta
+,Force)
+🧠 Significato
+quanto EMG predice la forza
+📊 Interpretazione
+↑ → buona efficienza neuromuscolare
+↓ → inefficienza o rumore
+📚 Riferimenti
+Farina et al. (2014)
+⚙️ 9. NORMALIZZAZIONE EMG (MVC)
+🔹 Formula
+EMG
+norm
+	​
 
-### 🔹 Force_mean
-Forza sostenuta → controllo motorio
+=
+EMG
+MVC
+	​
 
-### 🔹 Force_CV
-Variabilità → stabilità della forza
+EMG
+	​
 
-### 🔹 Force_Tremor_3_7Hz
-Oscillazioni fisiologiche → output neurale
+🧠 Significato
+rende confrontabili soggetti/trial
+📊 Interpretazione
+1 = attivazione massima
+0.5 = 50% attivazione
+📚 Riferimenti
+Burden (2010)
+🧠 10. EFFICIENZA NEUROMUSCOLARE
+🔹 Formula
+Efficiency=
+EMG
+Force
+	​
 
-### 🔹 Force_RFD_200ms
-Velocità di sviluppo forza → parametro più importante
+🧠 Significato
+quanta forza produci per unità di attivazione
+📊 Interpretazione
+↑ → sistema efficiente
+↓ → compensazioni o fatica
+📚 Riferimenti
+Moritani & deVries (1979)
+🧭 CONCLUSIONE
 
----
+👉 Il tuo sistema ora misura:
 
-## 🧠 6. TIMING
-
-### 🔹 Onset
-Tempo di attivazione (attenzione: sensibile al threshold)
-
----
-
-## 🔬 7. INTERPRETAZIONE GLOBALE
-
-✔ aumento forza  
-✔ aumento RFD  
-✔ aumento attivazione EMG  
-✔ riduzione co-contrazione  
-
-👉 effetto tipico della vibrazione:
-
-- facilitazione riflessa (Ia afferents)  
-- aumento sincronizzazione unità motorie  
-- aumento drive centrale  
-
----
-
-## 📌 8. PARAMETRI USATI
-
-EMG:
-- Band-pass: 20–450 Hz  
-- Envelope: 10 Hz  
-
-Onset:
-- baseline: 0.3 s  
-- soglia: mean + 3·std  
-
-Forza:
-- threshold: 50%  
-- smoothing: 10 Hz  
-
----
-
-## 🧭 9. CONCLUSIONE
-
-👉 Risultati coerenti con miglioramento neuromuscolare post vibrazione.
+attivazione muscolare
+fatica
+coordinazione
+stabilità
+efficienza
+esplosività
 """)
 
 st.subheader("Interpretazione automatica")
