@@ -1781,280 +1781,160 @@ show_grouped_summary(summary_df, "Timing / acquisizione", TIMING_METRICS)
 
 st.subheader("📘 Guida interpretativa dei risultati")
 
-st.markdown("""
-## 🧠 1. STRUTTURA GENERALE DEL RISULTATO
-🧠 1. STRUTTURA GENERALE
-PRE_mean → media dei trial prima
-POST_mean → media dopo
-Delta → differenza assoluta
-Delta_% → variazione percentuale
+st.markdown(GUIDA_COMPLETA)
+GUIDA_COMPLETA = """
+# 🧠 1. STRUTTURA GENERALE
 
-👉 Analisi aggregata multi-trial (approccio scientifico standard)
+- **PRE_mean** → media dei trial prima  
+- **POST_mean** → media dopo  
+- **Delta** → differenza assoluta  
+- **Delta_%** → variazione percentuale  
 
-⚡ 2. EMG – DOMINIO DEL TEMPO
-🔹 RMS (Root Mean Square)
-📌 Formula
-RMS=
-N
-1
-	​
+👉 Analisi aggregata multi-trial
 
-i=1
-∑
-N
-	​
+---
 
-x
-i
-2
-	​
+# ⚡ 2. EMG – DOMINIO DEL TEMPO
 
-	​
+## 🔹 RMS (Root Mean Square)
 
-🧠 Significato
-Ampiezza del segnale EMG
-Proporzionale a:
-numero unità motorie attive
-frequenza di scarica
-📊 Interpretazione
-↑ RMS → ↑ attivazione muscolare
-↓ RMS → ↓ attivazione o fatica
-📚 Riferimenti
-De Luca (1997)
-Farina et al. (2004)
-🔹 IEMG (Integrated EMG)
-📌 Formula
-IEMG=
-f
-s
-	​
+**Formula:**
 
-∑∣x(t)∣
-	​
+$$
+RMS = \\sqrt{\\frac{1}{N} \\sum_{i=1}^{N} x_i^2}
+$$
 
-🧠 Significato
-Energia totale del segnale nel tempo
-Indice di lavoro muscolare complessivo
-📊 Interpretazione
-↑ IEMG → maggiore lavoro muscolare
-sensibile alla durata della contrazione
-📚 Riferimenti
-Merletti & Parker (2004)
-Konrad (2005)
-🔹 RMS 0–200 ms
-📌 Definizione
+**Significato:**
+- Ampiezza del segnale EMG  
+- Numero unità motorie attive  
 
-RMS calcolato nei primi 200 ms dopo onset
+**Interpretazione:**
+- ↑ RMS → ↑ attivazione  
+- ↓ RMS → fatica o minore reclutamento  
 
-🧠 Significato
-Capacità di attivazione rapida
-reclutamento iniziale unità motorie
-📊 Interpretazione
-↑ → migliore drive neurale rapido
-fondamentale per esplosività
-📚 Riferimenti
-Aagaard et al. (2002)
-Del Vecchio et al. (2019)
-📊 3. EMG – DOMINIO DELLA FREQUENZA
-🔹 MDF (Median Frequency)
-📌 Formula
-∫
-0
-MDF
-	​
+📚 De Luca (1997), Farina et al. (2004)
 
-PSD(f)df=
-2
-1
-	​
+---
 
-∫
-0
-f
-max
-	​
+## 🔹 IEMG
 
-	​
+**Formula:**
 
-PSD(f)df
-🧠 Significato
-Frequenza che divide lo spettro in due
-indice di fatica e tipo di fibre
-📊 Interpretazione
-↓ MDF → fatica
-↑ MDF → maggiore attivazione veloce
-📚 Riferimenti
-De Luca (1984)
-Merletti (1999)
-🔹 MPF (Mean Power Frequency)
-📌 Formula
-MPF=
-∑PSD(f)
-∑f⋅PSD(f)
-	​
+$$
+IEMG = \\frac{\\sum |x(t)|}{f_s}
+$$
 
-🧠 Significato
-Centro di massa dello spettro
-📊 Interpretazione
-simile a MDF
-più sensibile al rumore
-📚 Riferimenti
-Phinyomark et al. (2012)
-🤝 4. CO-CONTRAZIONE
-🔹 CCI (Co-Contraction Index)
-📌 Formula
-CCI=
-A+B
-2⋅min(A,B)
-	​
+**Significato:**
+- Energia totale del segnale  
 
-🧠 Significato
-quanto agonista e antagonista lavorano insieme
-📊 Interpretazione
-↑ CCI → rigidità / inefficienza
-↓ CCI → controllo più efficiente
-📚 Riferimenti
-Rudolph et al. (2000)
-💪 5. FORZA – METRICHE BASE
-🔹 Force_peak
-📌 Formula
-F
-peak
-	​
+📚 Merletti & Parker (2004)
 
-=max(F(t))
-🧠 Significato
-Massima forza sviluppata (MVC)
-📚 Riferimenti
-Maffiuletti et al. (2016)
-🔹 Force_mean
-📌 Definizione
+---
 
-Media della forza sopra soglia (es. 50%)
+## 🔹 RMS 0–200 ms
 
-🧠 Significato
-Capacità di mantenere forza
-🔹 Force_CV (Coefficient of Variation)
-📌 Formula
-CV=
-μ
-σ
-	​
+- RMS nei primi 200 ms  
+- indice di esplosività neurale  
 
-🧠 Significato
-stabilità del segnale
-📊 Interpretazione
-↑ CV → instabilità
-↓ CV → controllo fine
-📚 Riferimenti
-Enoka & Duchateau (2008)
-🔬 6. STABILITÀ DELLA FORZA
-🔹 Tremor 3–7 Hz
-📌 Formula
-∫
-3
-7
-	​
+📚 Aagaard et al. (2002)
 
-PSD(f)df
-🧠 Significato
-oscillazioni fisiologiche
-controllo neuromuscolare
-📚 Riferimenti
-McAuley & Marsden (2000)
-🔹 Sample Entropy (SampEn)
-📌 Formula
-SampEn=−ln(
-B
-A
-	​
+---
 
-)
-🧠 Significato
-complessità del segnale
-📊 Interpretazione
-↑ → controllo più adattativo
-↓ → segnale rigido
-📚 Riferimenti
-Richman & Moorman (2000)
-🔹 Force Stability Index
-📌 Formula
-Index=100⋅(0.45(1−CV)+0.45(1−Tremor)+0.10(SampEn))
-🧠 Significato
-indice sintetico di stabilità
-🚀 7. ESPLOSIVITÀ
-🔹 RFD (Rate of Force Development)
-📌 Formula
-RFD=
-Δt
-ΔF
-	​
+# 📊 3. FREQUENZA
 
-🧠 Significato
-velocità di sviluppo della forza
-📚 Riferimenti
-Maffiuletti et al. (2016)
-🔗 8. ACCOPPIAMENTO EMG–FORZA
-🔹 Correlazione EMG–Forza
-📌 Formula
-r=corr(EMG
-env
-	​
+## 🔹 MDF
 
-,Force)
-🧠 Significato
-quanto EMG predice la forza
-📊 Interpretazione
-↑ → buona efficienza neuromuscolare
-↓ → inefficienza o rumore
-📚 Riferimenti
-Farina et al. (2014)
-⚙️ 9. NORMALIZZAZIONE EMG (MVC)
-🔹 Formula
-EMG
-norm
-	​
+$$
+\\int_0^{MDF} PSD(f) df = \\frac{1}{2} \\int PSD(f) df
+$$
 
-=
-EMG
-MVC
-	​
+👉 Fatica e tipo fibre
 
-EMG
-	​
+---
 
-🧠 Significato
-rende confrontabili soggetti/trial
-📊 Interpretazione
-1 = attivazione massima
-0.5 = 50% attivazione
-📚 Riferimenti
-Burden (2010)
-🧠 10. EFFICIENZA NEUROMUSCOLARE
-🔹 Formula
-Efficiency=
-EMG
-Force
-	​
+## 🔹 MPF
 
-🧠 Significato
-quanta forza produci per unità di attivazione
-📊 Interpretazione
-↑ → sistema efficiente
-↓ → compensazioni o fatica
-📚 Riferimenti
-Moritani & deVries (1979)
-🧭 CONCLUSIONE
+$$
+MPF = \\frac{\\sum f \\cdot PSD(f)}{\\sum PSD(f)}
+$$
 
-👉 Il tuo sistema ora misura:
+👉 Centro dello spettro
 
-attivazione muscolare
-fatica
-coordinazione
-stabilità
-efficienza
-esplosività
-""")
+---
+
+# 🤝 4. CCI
+
+$$
+CCI = \\frac{2 \\cdot min(A,B)}{A+B}
+$$
+
+👉 Efficienza motoria
+
+---
+
+# 💪 5. FORZA
+
+## 🔹 Force_peak
+$$
+F_{peak} = max(F(t))
+$$
+
+## 🔹 Force_CV
+$$
+CV = \\frac{\\sigma}{\\mu}
+$$
+
+---
+
+# 🔬 6. STABILITÀ
+
+## 🔹 Tremor 3–7 Hz
+Energia nel range fisiologico
+
+## 🔹 SampEn
+$$
+SampEn = -\\ln(A/B)
+$$
+
+---
+
+# 🚀 7. RFD
+
+$$
+RFD = \\frac{\\Delta F}{\\Delta t}
+$$
+
+👉 Esplosività
+
+---
+
+# 🔗 8. EMG–FORZA
+
+$$
+r = corr(EMG, Force)
+$$
+
+---
+
+# ⚙️ 9. NORMALIZZAZIONE
+
+$$
+EMG_{norm} = \\frac{EMG}{EMG_{MVC}}
+$$
+
+---
+
+# 🧠 10. EFFICIENZA
+
+$$
+Efficiency = \\frac{Force}{EMG}
+$$
+
+---
+
+👉 Sistema completo di analisi neuromuscolare
+"""
+
 
 st.subheader("Interpretazione automatica")
 st.markdown(interpret_results(summary_df))
