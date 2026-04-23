@@ -1236,39 +1236,277 @@ def create_pdf_report(summary_df, pre_details=None, post_details=None):
     guida = """
     <b>GUIDA INTERPRETATIVA</b><br/><br/>
 
-    PRE = media trial prima<br/>
-    POST = media trial dopo<br/>
-    Delta = differenza assoluta<br/>
-    Delta % = variazione percentuale<br/><br/>
+   🧠 1. STRUTTURA GENERALE
+PRE_mean → media dei trial prima
+POST_mean → media dopo
+Delta → differenza assoluta
+Delta_% → variazione percentuale
 
-    <b>EMG</b><br/>
-    RMS = attivazione muscolare assoluta<br/>
-    RMS norm = RMS normalizzato sul riferimento MVC EMG PRE (%)<br/>
-    IEMG = energia totale del segnale<br/>
-    IEMG norm = IEMG normalizzato sul riferimento MVC EMG PRE (%)<br/>
-    RMS 0-200 ms = esplosività neurale iniziale<br/>
-    MDF / MPF = contenuto spettrale, fatica / efficienza<br/>
-    CCI = co-contrazione tra agonista e antagonista<br/>
-    MVC EMG ref = riferimento EMG automatico calcolato dai trial PRE come massimo RMS su finestra mobile di 500 ms<br/><br/>
+👉 Analisi aggregata multi-trial (approccio scientifico standard)
 
-    <b>Forza</b><br/>
-    Force peak = forza massima istantanea<br/>
-    Force MVC 500 ms = massima media su finestra mobile di 500 ms<br/>
-    Force top5 mean = media del top 5% del segnale forza<br/>
-    Force mean above 50% = forza media sopra il 50% del picco<br/>
-    Force CV above 50% = stabilità della forza sopra soglia<br/>
-    Force AUC above 50% = area sotto la curva sopra soglia<br/>
-    Force Tremor 3-7 Hz = oscillazioni a bassa frequenza<br/>
-    Force RFD 200 ms = rapidità di sviluppo della forza<br/>
-    Force Stability Index = indice sintetico di stabilità<br/><br/>
+⚡ 2. EMG – DOMINIO DEL TEMPO
+🔹 RMS (Root Mean Square)
+📌 Formula
+RMS=
+N
+1
+	​
 
-    <b>Efficienza neuromuscolare</b><br/>
-    Neuromuscular Efficiency = Force MVC 500 ms / RMS norm<br/>
-    Valori più alti indicano maggiore forza prodotta per unità di attivazione EMG normalizzata.<br/><br/>
+i=1
+∑
+N
+	​
 
-    <b>Interpretazione generale</b><br/>
-    Aumento di forza, RFD, RMS norm ed efficienza suggerisce miglioramento neuromuscolare.<br/>
-    Riduzione della CCI suggerisce maggiore efficienza motoria.<br/>
+x
+i
+2
+	​
+
+	​
+
+🧠 Significato
+Ampiezza del segnale EMG
+Proporzionale a:
+numero unità motorie attive
+frequenza di scarica
+📊 Interpretazione
+↑ RMS → ↑ attivazione muscolare
+↓ RMS → ↓ attivazione o fatica
+📚 Riferimenti
+De Luca (1997)
+Farina et al. (2004)
+🔹 IEMG (Integrated EMG)
+📌 Formula
+IEMG=
+f
+s
+	​
+
+∑∣x(t)∣
+	​
+
+🧠 Significato
+Energia totale del segnale nel tempo
+Indice di lavoro muscolare complessivo
+📊 Interpretazione
+↑ IEMG → maggiore lavoro muscolare
+sensibile alla durata della contrazione
+📚 Riferimenti
+Merletti & Parker (2004)
+Konrad (2005)
+🔹 RMS 0–200 ms
+📌 Definizione
+
+RMS calcolato nei primi 200 ms dopo onset
+
+🧠 Significato
+Capacità di attivazione rapida
+reclutamento iniziale unità motorie
+📊 Interpretazione
+↑ → migliore drive neurale rapido
+fondamentale per esplosività
+📚 Riferimenti
+Aagaard et al. (2002)
+Del Vecchio et al. (2019)
+📊 3. EMG – DOMINIO DELLA FREQUENZA
+🔹 MDF (Median Frequency)
+📌 Formula
+∫
+0
+MDF
+	​
+
+PSD(f)df=
+2
+1
+	​
+
+∫
+0
+f
+max
+	​
+
+	​
+
+PSD(f)df
+🧠 Significato
+Frequenza che divide lo spettro in due
+indice di fatica e tipo di fibre
+📊 Interpretazione
+↓ MDF → fatica
+↑ MDF → maggiore attivazione veloce
+📚 Riferimenti
+De Luca (1984)
+Merletti (1999)
+🔹 MPF (Mean Power Frequency)
+📌 Formula
+MPF=
+∑PSD(f)
+∑f⋅PSD(f)
+	​
+
+🧠 Significato
+Centro di massa dello spettro
+📊 Interpretazione
+simile a MDF
+più sensibile al rumore
+📚 Riferimenti
+Phinyomark et al. (2012)
+🤝 4. CO-CONTRAZIONE
+🔹 CCI (Co-Contraction Index)
+📌 Formula
+CCI=
+A+B
+2⋅min(A,B)
+	​
+
+🧠 Significato
+quanto agonista e antagonista lavorano insieme
+📊 Interpretazione
+↑ CCI → rigidità / inefficienza
+↓ CCI → controllo più efficiente
+📚 Riferimenti
+Rudolph et al. (2000)
+💪 5. FORZA – METRICHE BASE
+🔹 Force_peak
+📌 Formula
+F
+peak
+	​
+
+=max(F(t))
+🧠 Significato
+Massima forza sviluppata (MVC)
+📚 Riferimenti
+Maffiuletti et al. (2016)
+🔹 Force_mean
+📌 Definizione
+
+Media della forza sopra soglia (es. 50%)
+
+🧠 Significato
+Capacità di mantenere forza
+🔹 Force_CV (Coefficient of Variation)
+📌 Formula
+CV=
+μ
+σ
+	​
+
+🧠 Significato
+stabilità del segnale
+📊 Interpretazione
+↑ CV → instabilità
+↓ CV → controllo fine
+📚 Riferimenti
+Enoka & Duchateau (2008)
+🔬 6. STABILITÀ DELLA FORZA
+🔹 Tremor 3–7 Hz
+📌 Formula
+∫
+3
+7
+	​
+
+PSD(f)df
+🧠 Significato
+oscillazioni fisiologiche
+controllo neuromuscolare
+📚 Riferimenti
+McAuley & Marsden (2000)
+🔹 Sample Entropy (SampEn)
+📌 Formula
+SampEn=−ln(
+B
+A
+	​
+
+)
+🧠 Significato
+complessità del segnale
+📊 Interpretazione
+↑ → controllo più adattativo
+↓ → segnale rigido
+📚 Riferimenti
+Richman & Moorman (2000)
+🔹 Force Stability Index
+📌 Formula
+Index=100⋅(0.45(1−CV)+0.45(1−Tremor)+0.10(SampEn))
+🧠 Significato
+indice sintetico di stabilità
+🚀 7. ESPLOSIVITÀ
+🔹 RFD (Rate of Force Development)
+📌 Formula
+RFD=
+Δt
+ΔF
+	​
+
+🧠 Significato
+velocità di sviluppo della forza
+📚 Riferimenti
+Maffiuletti et al. (2016)
+🔗 8. ACCOPPIAMENTO EMG–FORZA
+🔹 Correlazione EMG–Forza
+📌 Formula
+r=corr(EMG
+env
+	​
+
+,Force)
+🧠 Significato
+quanto EMG predice la forza
+📊 Interpretazione
+↑ → buona efficienza neuromuscolare
+↓ → inefficienza o rumore
+📚 Riferimenti
+Farina et al. (2014)
+⚙️ 9. NORMALIZZAZIONE EMG (MVC)
+🔹 Formula
+EMG
+norm
+	​
+
+=
+EMG
+MVC
+	​
+
+EMG
+	​
+
+🧠 Significato
+rende confrontabili soggetti/trial
+📊 Interpretazione
+1 = attivazione massima
+0.5 = 50% attivazione
+📚 Riferimenti
+Burden (2010)
+🧠 10. EFFICIENZA NEUROMUSCOLARE
+🔹 Formula
+Efficiency=
+EMG
+Force
+	​
+
+🧠 Significato
+quanta forza produci per unità di attivazione
+📊 Interpretazione
+↑ → sistema efficiente
+↓ → compensazioni o fatica
+📚 Riferimenti
+Moritani & deVries (1979)
+🧭 CONCLUSIONE
+
+👉 Il tuo sistema ora misura:
+
+attivazione muscolare
+fatica
+coordinazione
+stabilità
+efficienza
+esplosività
     """
     elements.append(Paragraph(guida, styles["Normal"]))
     elements.append(Spacer(1, 18))
