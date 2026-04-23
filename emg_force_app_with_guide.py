@@ -9,6 +9,29 @@ from scipy import signal
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle
+
+styles = getSampleStyleSheet()
+
+styles.add(ParagraphStyle(
+    name="TitleCenter",
+    parent=styles["Title"],
+    alignment=1
+))
+
+styles.add(ParagraphStyle(
+    name="Section",
+    parent=styles["Heading2"],
+    spaceAfter=10
+))
+
+styles.add(ParagraphStyle(
+    name="Body",
+    parent=styles["Normal"],
+    leading=14,
+    spaceAfter=6
+))
+
 from io import BytesIO
 from reportlab.platypus import (
     SimpleDocTemplate,
@@ -471,39 +494,246 @@ def cci(envelope_a, envelope_b, eps=1e-12):
 def interpret_results(summary_df):
     text = []
 
-    def trend(name):
+    def get_delta(name):
         if name not in summary_df.index:
-            return None
-        delta = summary_df.loc[name, "Delta_%"]
-        if not np.isfinite(delta):
-            return None
-        return delta
+            return np.nan
+        val = summary_df.loc[name, "Delta_%"]
+        return float(val) if np.isfinite(val) else np.nan
 
-    rfd = trend("Force_RFD_200ms")
-    force = trend("Force_peak")
-    rms = trend("RMS")
-    cci_v = trend("CCI")
+    def get_pre_post(name):
+        if name not in summary_df.index:
+            return np.nan, np.nan
+        pre = summary_df.loc[name, "PRE_mean"]
+        post = summary_df.loc[name, "POST_mean"]
+        pre = float(pre) if np.isfinite(pre) else np.nan
+        post = float(post) if np.isfinite(post) else np.nan
+        return pre, post
 
-    if rfd is not None and rfd > 20:
-        text.append("✔ Aumento significativo della velocità di sviluppo della forza (RFD) → miglior reclutamento neuromuscolare.")
+    # Forza
+    d_force_peak = get_delta("Force_peak")
+    d_force_mvc = get_delta("Force_MVC_500ms")
+    d_rfd = get_delta("Force_RFD_200ms")
+    d_force_cv = get_delta("Force_CV")
+    d_tremor = get_delta("Force_Tremor_3_7Hz")
+    d_auc = get_delta("Force_AUC_above_50pct")
 
-    if force is not None and force > 10:
-        text.append("✔ Incremento della forza massima → adattamento positivo alla vibrazione.")
+    # EMG tempo
+    d_rms = get_delta("RMS")
+    d_rms_norm = get_delta("RMS_norm")
+    d_iemg = get_delta("IEMG")
+    d_iemg_norm = get_delta("IEMG_norm")
+    d_rms_200 = get_delta("RMS_0_200ms")
 
-    if rms is not None and rms > 10:
-        text.append("✔ Maggiore attivazione EMG → aumento del drive neurale.")
+    # EMG frequenza / coordinazione
+    d_mdf = get_delta("MDF")
+    d_mpf = get_delta("MPF")
+    d_cci = get_delta("CCI")
 
-    if cci_v is not None and cci_v < 0:
-        text.append("✔ Riduzione della co-contrazione → miglior efficienza motoria.")
+    # Efficienza
+    d_eff = get_delta("Neuromuscular_Efficiency")
 
-    tremor = trend("Force_Tremor_3_7Hz")
-    if tremor is not None and tremor > 20:
-        text.append("⚠ Aumento del tremore → possibile aumento del drive centrale.")
+    # Timing
+    d_onset = get_delta("Onset_s")
 
-    if not text:
-        text.append("Nessuna variazione significativa rilevata.")
+    # ===== Interpretazione forza =====
+    if np.isfinite(d_force_peak):
+        if d_force_peak > 10:
+            text.append("✔ La forza di picco è aumentata in modo rilevante: il soggetto esprime una maggiore capacità massima.")
+        elif d_force_peak < -10:
+            text.append("⚠ La forza di picco è diminuita: possibile riduzione della capacità massima o variabilità tra trial.")
 
-    return "\n".join(text)
+    if np.isfinite(d_force_mvc):
+        if d_force_mvc > 10:
+            text.append("✔ La MVC robusta su 500 ms è aumentata: il soggetto non solo raggiunge picchi più alti, ma mantiene anche livelli di forza più elevati.")
+        elif d_force_mvc < -10:
+            text.append("⚠ La MVC robusta su 500 ms è diminuita: la fase di forza sostenuta appare peggiore nel POST.")
+
+    if np.isfinite(d_rfd):
+        if d_rfd > 20:
+            text.append("✔ L’RFD è aumentata nettamente: il sistema neuromuscolare sviluppa forza più rapidamente, segno di migliore esplosività.")
+        elif d_rfd < -20:
+            text.append("⚠ L’RFD è diminuita: la capacità di sviluppare forza rapidamente appare ridotta.")
+
+    if np.isfinite(d_auc):
+        if d_auc > 10:
+            text.append("✔ L’area di forza sopra soglia è aumentata: il soggetto produce più forza complessiva nella parte alta della contrazione.")
+        elif d_auc < -10:
+            text.append("⚠ L’area di forza sopra soglia è diminuita: il contenuto complessivo della contrazione alta è inferiore.")
+
+    # ===== Stabilità =====
+    if np.isfinite(d_force_cv):
+        if d_force_cv < -5:
+            text.append("✔ Il coefficiente di variazione della forza è diminuito: la forza è più stabile.")
+        elif d_force_cv > 5:
+            text.append("⚠ Il coefficiente di variazione della forza è aumentato: la contrazione è più variabile. Questo però può anche accompagnare un aumento della forza espressa.")
+
+    if np.isfinite(d_tremor):
+        if d_tremor < -10:
+            text.append("✔ La potenza del tremore 3–7 Hz è diminuita: possibile miglioramento della steadiness.")
+        elif d_tremor > 10:
+            text.append("⚠ La potenza del tremore 3–7 Hz è aumentata: la forza mostra più oscillazioni lente, potenzialmente legate al controllo neuromotorio o all’aumento del drive centrale.")
+
+    # ===== EMG ampiezza =====
+    if np.isfinite(d_rms_norm):
+        if d_rms_norm > 10:
+            text.append("✔ L’EMG normalizzato (RMS_norm) è aumentato: il muscolo lavora a una quota più alta del riferimento MVC EMG.")
+        elif d_rms_norm < -10:
+            text.append("✔ L’EMG normalizzato (RMS_norm) è diminuito: il muscolo ottiene il compito con minore attivazione relativa.")
+
+    elif np.isfinite(d_rms):
+        if d_rms > 10:
+            text.append("✔ L’RMS è aumentato: maggiore attivazione neuromuscolare.")
+        elif d_rms < -10:
+            text.append("✔ L’RMS è diminuito: minore attivazione muscolare o migliore economia motoria.")
+
+    if np.isfinite(d_iemg_norm):
+        if d_iemg_norm > 10:
+            text.append("✔ L’IEMG normalizzato è aumentato: il lavoro EMG totale è maggiore.")
+        elif d_iemg_norm < -10:
+            text.append("✔ L’IEMG normalizzato è diminuito: il lavoro EMG totale è minore.")
+
+    elif np.isfinite(d_iemg):
+        if d_iemg > 10:
+            text.append("✔ L’IEMG è aumentato: il lavoro EMG totale è maggiore.")
+        elif d_iemg < -10:
+            text.append("✔ L’IEMG è diminuito: il lavoro EMG totale è minore.")
+
+    if np.isfinite(d_rms_200):
+        if d_rms_200 > 10:
+            text.append("✔ L’RMS nei primi 200 ms è aumentato: migliore attivazione iniziale ed esplosività neurale.")
+        elif d_rms_200 < -10:
+            text.append("⚠ L’RMS nei primi 200 ms è diminuito: l’attivazione iniziale è meno rapida.")
+
+    # ===== Frequenza / fatica =====
+    if np.isfinite(d_mdf):
+        if d_mdf > 5:
+            text.append("✔ MDF in aumento: possibile riduzione della fatica o attivazione relativamente più veloce.")
+        elif d_mdf < -5:
+            text.append("⚠ MDF in diminuzione: possibile rallentamento della conduzione o comparsa di fatica.")
+
+    if np.isfinite(d_mpf):
+        if d_mpf > 5:
+            text.append("✔ MPF in aumento: distribuzione spettrale spostata verso frequenze più alte.")
+        elif d_mpf < -5:
+            text.append("⚠ MPF in diminuzione: distribuzione spettrale spostata verso frequenze più basse.")
+
+    if np.isfinite(d_cci):
+        if d_cci < -5:
+            text.append("✔ La co-contrazione è diminuita: possibile miglioramento dell’efficienza motoria.")
+        elif d_cci > 5:
+            text.append("⚠ La co-contrazione è aumentata: possibile maggiore rigidità o strategia di stabilizzazione.")
+
+    # ===== Efficienza =====
+    if np.isfinite(d_eff):
+        if d_eff > 10:
+            text.append("🔥 L’efficienza neuromuscolare è aumentata: il soggetto produce più forza per unità di attivazione EMG normalizzata.")
+        elif d_eff < -10:
+            text.append("⚠ L’efficienza neuromuscolare è diminuita: serve più attivazione relativa per produrre la forza osservata.")
+
+    # ===== Timing =====
+    if np.isfinite(d_onset):
+        if d_onset < -5:
+            text.append("✔ L’onset è anticipato: l’attivazione inizia prima.")
+        elif d_onset > 5:
+            text.append("⚠ L’onset è ritardato. Va però interpretato con cautela, perché dipende dal criterio di soglia e dalla qualità del segnale.")
+
+    # ===== Sintesi finale =====
+    positive_force = sum([
+        np.isfinite(d_force_peak) and d_force_peak > 10,
+        np.isfinite(d_force_mvc) and d_force_mvc > 10,
+        np.isfinite(d_rfd) and d_rfd > 20
+    ])
+
+    positive_emg = sum([
+        np.isfinite(d_rms_norm) and d_rms_norm > 10,
+        np.isfinite(d_rms_200) and d_rms_200 > 10,
+        np.isfinite(d_mdf) and d_mdf > 5,
+        np.isfinite(d_mpf) and d_mpf > 5
+    ])
+
+    if positive_force >= 2 and positive_emg >= 1:
+        text.append("🧠 Quadro complessivamente compatibile con un miglioramento neuromuscolare post-intervento, con aumento della capacità di forza e/o della qualità dell’attivazione.")
+    elif positive_force >= 2:
+        text.append("🧠 Quadro complessivamente compatibile con un miglioramento meccanico della prestazione di forza.")
+    elif positive_emg >= 2:
+        text.append("🧠 Quadro complessivamente compatibile con una modifica del pattern di attivazione neuromuscolare.")
+    elif len(text) == 0:
+        text.append("Nessuna variazione chiara o coerente rilevata nelle metriche principali.")
+
+    return "\\n\\n".join(text)
+
+def interpret_results_pdf(summary_df):
+    sections = []
+
+    def get_delta(name):
+        if name not in summary_df.index:
+            return np.nan
+        val = summary_df.loc[name, "Delta_%"]
+        return float(val) if np.isfinite(val) else np.nan
+
+    d_force = get_delta("Force_peak")
+    d_rfd = get_delta("Force_RFD_200ms")
+    d_rms = get_delta("RMS_norm") if "RMS_norm" in summary_df.index else get_delta("RMS")
+    d_cci = get_delta("CCI")
+    d_mdf = get_delta("MDF")
+    d_cv = get_delta("Force_CV")
+
+    force_lines = []
+    if np.isfinite(d_force):
+        if d_force > 10:
+            force_lines.append("✔ <b>Forza massima aumentata</b> → miglioramento della capacità neuromuscolare")
+        elif d_force < -10:
+            force_lines.append("⚠ <b>Forza massima diminuita</b>")
+
+    if np.isfinite(d_rfd):
+        if d_rfd > 20:
+            force_lines.append("🔥 <b>RFD aumentata</b> → maggiore esplosività e reclutamento rapido")
+        elif d_rfd < -20:
+            force_lines.append("⚠ <b>RFD diminuita</b>")
+
+    if force_lines:
+        sections.append("<b>💪 FORZA</b><br/>" + "<br/>".join(force_lines))
+
+    emg_lines = []
+    if np.isfinite(d_rms):
+        if d_rms > 10:
+            emg_lines.append("✔ <b>Attivazione EMG aumentata</b> → maggiore drive neurale")
+        elif d_rms < -10:
+            emg_lines.append("✔ <b>Attivazione EMG ridotta</b> → possibile miglior efficienza")
+
+    if np.isfinite(d_mdf):
+        if d_mdf > 5:
+            emg_lines.append("✔ <b>Frequenze EMG più alte</b> → minore fatica")
+        elif d_mdf < -5:
+            emg_lines.append("⚠ <b>Possibile fatica muscolare</b>")
+
+    if emg_lines:
+        sections.append("<b>⚡ EMG</b><br/>" + "<br/>".join(emg_lines))
+
+    coord_lines = []
+    if np.isfinite(d_cci):
+        if d_cci < -5:
+            coord_lines.append("✔ <b>Co-contrazione ridotta</b> → movimento più efficiente")
+        elif d_cci > 5:
+            coord_lines.append("⚠ <b>Co-contrazione aumentata</b>")
+
+    if coord_lines:
+        sections.append("<b>🤝 COORDINAZIONE</b><br/>" + "<br/>".join(coord_lines))
+
+    stab_lines = []
+    if np.isfinite(d_cv):
+        if d_cv < -5:
+            stab_lines.append("✔ <b>Forza più stabile</b>")
+        elif d_cv > 5:
+            stab_lines.append("⚠ <b>Maggiore variabilità della forza</b>")
+
+    if stab_lines:
+        sections.append("<b>🎯 STABILITÀ</b><br/>" + "<br/>".join(stab_lines))
+
+    if not sections:
+        return "Nessuna variazione significativa rilevata."
+
+    return "<br/><br/>".join(sections)
 
 from scipy.integrate import trapezoid
 
@@ -927,43 +1157,246 @@ def analyze_trial(
 # BATCH ANALYSIS
 # =========================================================
 
-def interpret_results(summary_df):
-    text = []
-
-    def trend(name):
+def interpret_results_dashboard(summary_df):
+    def get_delta(name):
         if name not in summary_df.index:
-            return None
-        delta = summary_df.loc[name, "Delta_%"]
-        if not np.isfinite(delta):
-            return None
-        return delta
+            return np.nan
+        val = summary_df.loc[name, "Delta_%"]
+        return float(val) if np.isfinite(val) else np.nan
 
-    rfd = trend("Force_RFD_200ms")
-    force = trend("Force_peak")
-    rms = trend("RMS")
-    cci_v = trend("CCI")
+    sections = {
+        "Forza": [],
+        "Stabilità della forza": [],
+        "EMG - attivazione": [],
+        "EMG - frequenza": [],
+        "Coordinazione": [],
+        "Efficienza neuromuscolare": [],
+        "Timing": [],
+        "Sintesi finale": [],
+    }
 
-    if rfd is not None and rfd > 20:
-        text.append("✔ Aumento significativo della velocità di sviluppo della forza (RFD) → miglior reclutamento neuromuscolare.")
+    d_force_peak = get_delta("Force_peak")
+    d_force_mvc = get_delta("Force_MVC_500ms")
+    d_force_mean = get_delta("Force_mean")
+    d_rfd = get_delta("Force_RFD_200ms")
+    d_force_cv = get_delta("Force_CV")
+    d_tremor = get_delta("Force_Tremor_3_7Hz")
 
-    if force is not None and force > 10:
-        text.append("✔ Incremento della forza massima → adattamento positivo alla vibrazione.")
+    d_rms = get_delta("RMS")
+    d_rms_norm = get_delta("RMS_norm")
+    d_iemg = get_delta("IEMG")
+    d_iemg_norm = get_delta("IEMG_norm")
+    d_rms_200 = get_delta("RMS_0_200ms")
 
-    if rms is not None and rms > 10:
-        text.append("✔ Maggiore attivazione EMG → aumento del drive neurale.")
+    d_mdf = get_delta("MDF")
+    d_mpf = get_delta("MPF")
+    d_cci = get_delta("CCI")
+    d_eff = get_delta("Neuromuscular_Efficiency")
+    d_onset = get_delta("Onset_s")
 
-    if cci_v is not None and cci_v < 0:
-        text.append("✔ Riduzione della co-contrazione → miglior efficienza motoria.")
+    # FORZA
+    if np.isfinite(d_force_peak):
+        if d_force_peak > 10:
+            sections["Forza"].append(
+                f"La forza di picco è aumentata del {d_force_peak:.1f}%, suggerendo una maggiore capacità di esprimere forza massima."
+            )
+        elif d_force_peak < -10:
+            sections["Forza"].append(
+                f"La forza di picco è diminuita del {abs(d_force_peak):.1f}%, suggerendo una riduzione della capacità massima o maggiore variabilità tra i trial."
+            )
 
-    tremor = trend("Force_Tremor_3_7Hz")
-    if tremor is not None and tremor > 20:
-        text.append("⚠ Aumento del tremore → possibile aumento del drive centrale.")
+    if np.isfinite(d_force_mvc):
+        if d_force_mvc > 10:
+            sections["Forza"].append(
+                f"La MVC robusta su 500 ms è aumentata del {d_force_mvc:.1f}%, indicando una migliore capacità di sostenere livelli elevati di forza."
+            )
+        elif d_force_mvc < -10:
+            sections["Forza"].append(
+                f"La MVC robusta su 500 ms è diminuita del {abs(d_force_mvc):.1f}%, suggerendo una prestazione peggiore nella fase di forza mantenuta."
+            )
 
-    if not text:
-        text.append("Nessuna variazione significativa rilevata.")
+    if np.isfinite(d_force_mean):
+        if d_force_mean > 10:
+            sections["Forza"].append(
+                f"La forza media sopra soglia è aumentata del {d_force_mean:.1f}%, indicando una migliore qualità della contrazione nella parte alta del segnale."
+            )
+        elif d_force_mean < -10:
+            sections["Forza"].append(
+                f"La forza media sopra soglia è diminuita del {abs(d_force_mean):.1f}%, suggerendo un mantenimento meno efficace della forza."
+            )
 
-    return "\n".join(text)
+    if np.isfinite(d_rfd):
+        if d_rfd > 20:
+            sections["Forza"].append(
+                f"L’RFD è aumentata del {d_rfd:.1f}%, segnalando una maggiore esplosività e una più rapida capacità di sviluppare forza."
+            )
+        elif d_rfd < -20:
+            sections["Forza"].append(
+                f"L’RFD è diminuita del {abs(d_rfd):.1f}%, suggerendo una minore esplosività neuromuscolare."
+            )
 
+    # STABILITÀ
+    if np.isfinite(d_force_cv):
+        if d_force_cv < -5:
+            sections["Stabilità della forza"].append(
+                f"Il coefficiente di variazione della forza è diminuito del {abs(d_force_cv):.1f}%, indicando una contrazione più stabile."
+            )
+        elif d_force_cv > 5:
+            sections["Stabilità della forza"].append(
+                f"Il coefficiente di variazione della forza è aumentato del {d_force_cv:.1f}%. La forza è quindi più variabile; questo dato va però interpretato insieme all’eventuale aumento della forza espressa."
+            )
+
+    if np.isfinite(d_tremor):
+        if d_tremor < -10:
+            sections["Stabilità della forza"].append(
+                f"La potenza del tremore 3–7 Hz è diminuita del {abs(d_tremor):.1f}%, suggerendo un possibile miglioramento della steadiness."
+            )
+        elif d_tremor > 10:
+            sections["Stabilità della forza"].append(
+                f"La potenza del tremore 3–7 Hz è aumentata del {d_tremor:.1f}%, indicando oscillazioni più evidenti della forza."
+            )
+
+    # EMG ATTIVAZIONE
+    if np.isfinite(d_rms_norm):
+        if d_rms_norm > 10:
+            sections["EMG - attivazione"].append(
+                f"L’RMS normalizzato è aumentato del {d_rms_norm:.1f}%, indicando che il muscolo lavora a una quota più alta del riferimento MVC EMG."
+            )
+        elif d_rms_norm < -10:
+            sections["EMG - attivazione"].append(
+                f"L’RMS normalizzato è diminuito del {abs(d_rms_norm):.1f}%, suggerendo una minore attivazione relativa o una migliore economia neuromuscolare."
+            )
+    elif np.isfinite(d_rms):
+        if d_rms > 10:
+            sections["EMG - attivazione"].append(
+                f"L’RMS è aumentato del {d_rms:.1f}%, compatibilmente con una maggiore attivazione muscolare."
+            )
+        elif d_rms < -10:
+            sections["EMG - attivazione"].append(
+                f"L’RMS è diminuito del {abs(d_rms):.1f}%, indicando una minore ampiezza del segnale EMG."
+            )
+
+    if np.isfinite(d_iemg_norm):
+        if d_iemg_norm > 10:
+            sections["EMG - attivazione"].append(
+                f"L’IEMG normalizzato è aumentato del {d_iemg_norm:.1f}%, suggerendo un maggiore lavoro EMG totale."
+            )
+        elif d_iemg_norm < -10:
+            sections["EMG - attivazione"].append(
+                f"L’IEMG normalizzato è diminuito del {abs(d_iemg_norm):.1f}%, indicando un lavoro EMG totale minore."
+            )
+    elif np.isfinite(d_iemg):
+        if d_iemg > 10:
+            sections["EMG - attivazione"].append(
+                f"L’IEMG è aumentato del {d_iemg:.1f}%, confermando un incremento dell’attività muscolare complessiva."
+            )
+        elif d_iemg < -10:
+            sections["EMG - attivazione"].append(
+                f"L’IEMG è diminuito del {abs(d_iemg):.1f}%, indicando una riduzione dell’attività muscolare complessiva."
+            )
+
+    if np.isfinite(d_rms_200):
+        if d_rms_200 > 10:
+            sections["EMG - attivazione"].append(
+                f"L’RMS nei primi 200 ms è aumentato del {d_rms_200:.1f}%, suggerendo una fase iniziale di attivazione più rapida ed esplosiva."
+            )
+        elif d_rms_200 < -10:
+            sections["EMG - attivazione"].append(
+                f"L’RMS nei primi 200 ms è diminuito del {abs(d_rms_200):.1f}%, suggerendo un reclutamento iniziale meno rapido."
+            )
+
+    # EMG FREQUENZA
+    if np.isfinite(d_mdf):
+        if d_mdf > 5:
+            sections["EMG - frequenza"].append(
+                f"La MDF è aumentata del {d_mdf:.1f}%, suggerendo uno spostamento dello spettro verso frequenze più alte e una possibile minore fatica."
+            )
+        elif d_mdf < -5:
+            sections["EMG - frequenza"].append(
+                f"La MDF è diminuita del {abs(d_mdf):.1f}%, dato compatibile con affaticamento o rallentamento della conduzione."
+            )
+
+    if np.isfinite(d_mpf):
+        if d_mpf > 5:
+            sections["EMG - frequenza"].append(
+                f"La MPF è aumentata del {d_mpf:.1f}%, confermando uno spostamento del contenuto spettrale verso frequenze più alte."
+            )
+        elif d_mpf < -5:
+            sections["EMG - frequenza"].append(
+                f"La MPF è diminuita del {abs(d_mpf):.1f}%, indicando uno spostamento verso frequenze più basse."
+            )
+
+    # COORDINAZIONE
+    if np.isfinite(d_cci):
+        if d_cci < -5:
+            sections["Coordinazione"].append(
+                f"La co-contrazione è diminuita del {abs(d_cci):.1f}%, suggerendo un pattern motorio più efficiente."
+            )
+        elif d_cci > 5:
+            sections["Coordinazione"].append(
+                f"La co-contrazione è aumentata del {d_cci:.1f}%, possibile segno di maggiore rigidità o stabilizzazione."
+            )
+
+    # EFFICIENZA
+    if np.isfinite(d_eff):
+        if d_eff > 10:
+            sections["Efficienza neuromuscolare"].append(
+                f"L’efficienza neuromuscolare è aumentata del {d_eff:.1f}%, indicando una maggiore forza prodotta per unità di attivazione EMG normalizzata."
+            )
+        elif d_eff < -10:
+            sections["Efficienza neuromuscolare"].append(
+                f"L’efficienza neuromuscolare è diminuita del {abs(d_eff):.1f}%, indicando un costo neurale relativo più elevato per produrre la forza osservata."
+            )
+
+    # TIMING
+    if np.isfinite(d_onset):
+        if d_onset < -5:
+            sections["Timing"].append(
+                f"L’onset è anticipato del {abs(d_onset):.1f}%, quindi l’attivazione EMG compare prima."
+            )
+        elif d_onset > 5:
+            sections["Timing"].append(
+                f"L’onset è ritardato del {d_onset:.1f}%. Questo dato va interpretato con cautela perché dipende dalla soglia di rilevamento."
+            )
+
+    # SINTESI
+    miglioramento_forza = (
+        (np.isfinite(d_force_peak) and d_force_peak > 10) or
+        (np.isfinite(d_force_mvc) and d_force_mvc > 10) or
+        (np.isfinite(d_rfd) and d_rfd > 20)
+    )
+
+    miglioramento_emg = (
+        (np.isfinite(d_rms_norm) and d_rms_norm > 10) or
+        (np.isfinite(d_rms) and d_rms > 10) or
+        (np.isfinite(d_rms_200) and d_rms_200 > 10)
+    )
+
+    miglioramento_eff = np.isfinite(d_eff) and d_eff > 10
+
+    if miglioramento_forza and miglioramento_emg:
+        sections["Sintesi finale"].append(
+            "Nel complesso il quadro è compatibile con un miglioramento neuromuscolare post-intervento, con incremento della capacità di forza e un pattern di attivazione più favorevole."
+        )
+    elif miglioramento_forza:
+        sections["Sintesi finale"].append(
+            "Nel complesso emerge soprattutto un miglioramento meccanico della prestazione di forza."
+        )
+    elif miglioramento_emg:
+        sections["Sintesi finale"].append(
+            "Nel complesso emerge soprattutto una modifica del pattern di attivazione neuromuscolare."
+        )
+    else:
+        sections["Sintesi finale"].append(
+            "Non emergono variazioni univoche e fortemente coerenti su tutte le metriche principali; il risultato va interpretato con cautela."
+        )
+
+    if miglioramento_eff:
+        sections["Sintesi finale"].append(
+            "L’aumento dell’efficienza neuromuscolare suggerisce che il sistema produce più forza a fronte di un costo neurale relativo più favorevole."
+        )
+
+    return sections
 
 def analyze_group(emg_files, force_files, label, config):
     trial_rows = []
@@ -1052,6 +1485,40 @@ def build_summary(pre_df, post_df):
     return summary
 
 
+import html
+import re
+
+def markdown_to_reportlab_html(text: str) -> str:
+    """
+    Converte un markdown molto semplice in HTML compatibile con ReportLab.
+    Supporta:
+    - ### Titoli
+    - **grassetto**
+    - newline -> <br/>
+    """
+    lines = text.splitlines()
+    out_lines = []
+
+    for line in lines:
+        line = line.strip()
+
+        if not line:
+            out_lines.append("<br/>")
+            continue
+
+        # Titoli markdown ### -> <b>...</b>
+        if line.startswith("### "):
+            line = f"<b>{html.escape(line[4:])}</b>"
+        else:
+            line = html.escape(line)
+
+        # **bold** -> <b>...</b>
+        line = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", line)
+
+        out_lines.append(line)
+
+    return "<br/>".join(out_lines)
+
 def create_zip_report(trial_df, summary_df):
     bio = io.BytesIO()
     with zipfile.ZipFile(bio, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
@@ -1059,6 +1526,38 @@ def create_zip_report(trial_df, summary_df):
         zf.writestr("summary_pre_post.csv", summary_df.to_csv())
     bio.seek(0)
     return bio
+
+def show_interpretation_dashboard(summary_df):
+    sections = interpret_results_dashboard(summary_df)
+
+    st.subheader("🧠 Interpretazione automatica")
+
+    order = [
+        "Forza",
+        "Stabilità della forza",
+        "EMG - attivazione",
+        "EMG - frequenza",
+        "Coordinazione",
+        "Efficienza neuromuscolare",
+        "Timing",
+        "Sintesi finale",
+    ]
+
+    shown_any = False
+
+    for title in order:
+        lines = sections.get(title, [])
+        if not lines:
+            continue
+
+        shown_any = True
+        with st.container(border=True):
+            st.markdown(f"### {title}")
+            for line in lines:
+                st.write(f"- {line}")
+
+    if not shown_any:
+        st.info("Nessuna variazione significativa rilevata.")
 
 
 # =========================================================
@@ -1198,19 +1697,338 @@ def fig_to_image(fig, width=500, height=250):
     img = Image(buf, width=width, height=height)
     return img
 
+def interpret_results_pdf(summary_df):
+    parts = []
+
+    def get_delta(name):
+        if name not in summary_df.index:
+            return np.nan
+        val = summary_df.loc[name, "Delta_%"]
+        return float(val) if np.isfinite(val) else np.nan
+
+    def has_metric(name):
+        return name in summary_df.index and np.isfinite(summary_df.loc[name, "POST_mean"])
+
+    d_force_peak = get_delta("Force_peak")
+    d_force_mvc = get_delta("Force_MVC_500ms")
+    d_force_mean = get_delta("Force_mean")
+    d_rfd = get_delta("Force_RFD_200ms")
+    d_force_cv = get_delta("Force_CV")
+    d_tremor = get_delta("Force_Tremor_3_7Hz")
+
+    d_rms = get_delta("RMS")
+    d_rms_norm = get_delta("RMS_norm")
+    d_iemg = get_delta("IEMG")
+    d_iemg_norm = get_delta("IEMG_norm")
+    d_rms_200 = get_delta("RMS_0_200ms")
+
+    d_mdf = get_delta("MDF")
+    d_mpf = get_delta("MPF")
+    d_cci = get_delta("CCI")
+    d_eff = get_delta("Neuromuscular_Efficiency")
+    d_onset = get_delta("Onset_s")
+
+    # =========================
+    # FORZA
+    # =========================
+    forza = []
+    if np.isfinite(d_force_peak):
+        if d_force_peak > 10:
+            forza.append(
+                "La forza di picco è aumentata in modo rilevante, suggerendo una maggiore capacità del soggetto di esprimere forza massima."
+            )
+        elif d_force_peak < -10:
+            forza.append(
+                "La forza di picco è diminuita, suggerendo una riduzione della capacità massima oppure una maggiore variabilità tra i trial."
+            )
+
+    if np.isfinite(d_force_mvc):
+        if d_force_mvc > 10:
+            forza.append(
+                "La MVC robusta calcolata su finestra mobile di 500 ms è aumentata, indicando che il soggetto non solo raggiunge picchi più alti, ma riesce anche a sostenere livelli elevati di forza in maniera più stabile."
+            )
+        elif d_force_mvc < -10:
+            forza.append(
+                "La MVC robusta su 500 ms è diminuita, suggerendo una prestazione peggiore nella fase di forza sostenuta."
+            )
+
+    if np.isfinite(d_force_mean):
+        if d_force_mean > 10:
+            forza.append(
+                "La forza media sopra soglia è aumentata, indicando una migliore capacità di mantenere la contrazione in una zona funzionalmente rilevante."
+            )
+        elif d_force_mean < -10:
+            forza.append(
+                "La forza media sopra soglia è diminuita, suggerendo una riduzione della qualità della contrazione mantenuta."
+            )
+
+    if np.isfinite(d_rfd):
+        if d_rfd > 20:
+            forza.append(
+                "L’RFD è aumentata in maniera marcata, suggerendo una migliore capacità di sviluppare forza rapidamente. Questo risultato è particolarmente rilevante perché riflette l’efficienza della fase iniziale di reclutamento neuromuscolare."
+            )
+        elif d_rfd < -20:
+            forza.append(
+                "L’RFD è diminuita, suggerendo una minore esplosività neuromuscolare nella fase iniziale della contrazione."
+            )
+
+    if forza:
+        parts.append("<b>💪 Forza</b><br/>" + "<br/>".join([f"• {x}" for x in forza]))
+
+    # =========================
+    # STABILITÀ
+    # =========================
+    stabilita = []
+    if np.isfinite(d_force_cv):
+        if d_force_cv < -5:
+            stabilita.append(
+                "Il coefficiente di variazione della forza è diminuito: la contrazione appare più stabile e con minori fluttuazioni relative."
+            )
+        elif d_force_cv > 5:
+            stabilita.append(
+                "Il coefficiente di variazione della forza è aumentato: la contrazione appare più variabile. Questo dato va però interpretato insieme all’aumento della forza, perché una forza più alta può accompagnarsi a una maggiore variabilità assoluta."
+            )
+
+    if np.isfinite(d_tremor):
+        if d_tremor < -10:
+            stabilita.append(
+                "La potenza del tremore nella banda 3–7 Hz è diminuita, suggerendo un possibile miglioramento della steadiness e del controllo fine della forza."
+            )
+        elif d_tremor > 10:
+            stabilita.append(
+                "La potenza del tremore nella banda 3–7 Hz è aumentata, indicando oscillazioni più evidenti nel segnale di forza. Questo può riflettere un aumento del drive centrale, ma anche una minore regolarità del controllo."
+            )
+
+    if stabilita:
+        parts.append("<b>🎯 Stabilità della forza</b><br/>" + "<br/>".join([f"• {x}" for x in stabilita]))
+
+    # =========================
+    # EMG AMPIEZZA
+    # =========================
+    emg_amp = []
+    if np.isfinite(d_rms_norm):
+        if d_rms_norm > 10:
+            emg_amp.append(
+                "L’RMS normalizzato è aumentato: il muscolo lavora a una quota più alta del riferimento MVC EMG, suggerendo un aumento dell’attivazione relativa."
+            )
+        elif d_rms_norm < -10:
+            emg_amp.append(
+                "L’RMS normalizzato è diminuito: il soggetto ottiene la prestazione con minore attivazione relativa, possibile segno di maggiore economia neuromuscolare."
+            )
+    elif np.isfinite(d_rms):
+        if d_rms > 10:
+            emg_amp.append(
+                "L’RMS è aumentato: il segnale EMG mostra una maggiore ampiezza, compatibile con un incremento del drive neurale e/o del reclutamento di unità motorie."
+            )
+        elif d_rms < -10:
+            emg_amp.append(
+                "L’RMS è diminuito: il segnale EMG mostra una minore ampiezza, interpretabile come minore attivazione o migliore efficienza a parità di compito."
+            )
+
+    if np.isfinite(d_iemg_norm):
+        if d_iemg_norm > 10:
+            emg_amp.append(
+                "L’IEMG normalizzato è aumentato: il lavoro EMG totale nella finestra analizzata è maggiore."
+            )
+        elif d_iemg_norm < -10:
+            emg_amp.append(
+                "L’IEMG normalizzato è diminuito: il lavoro EMG totale appare ridotto."
+            )
+    elif np.isfinite(d_iemg):
+        if d_iemg > 10:
+            emg_amp.append(
+                "L’IEMG è aumentato, indicando un maggiore contenuto complessivo di attività EMG nel tempo."
+            )
+        elif d_iemg < -10:
+            emg_amp.append(
+                "L’IEMG è diminuito, indicando un minore contenuto complessivo di attività EMG nel tempo."
+            )
+
+    if np.isfinite(d_rms_200):
+        if d_rms_200 > 10:
+            emg_amp.append(
+                "L’RMS nei primi 200 ms è aumentato, suggerendo una fase iniziale di attivazione più rapida ed esplosiva."
+            )
+        elif d_rms_200 < -10:
+            emg_amp.append(
+                "L’RMS nei primi 200 ms è diminuito, suggerendo una fase iniziale di reclutamento meno rapida."
+            )
+
+    if emg_amp:
+        parts.append("<b>⚡ EMG – ampiezza e attivazione</b><br/>" + "<br/>".join([f"• {x}" for x in emg_amp]))
+
+    # =========================
+    # EMG FREQUENZA
+    # =========================
+    emg_freq = []
+    if np.isfinite(d_mdf):
+        if d_mdf > 5:
+            emg_freq.append(
+                "La MDF è aumentata: il contenuto spettrale dell’EMG si è spostato verso frequenze più alte, dato compatibile con minore fatica o attivazione relativamente più rapida."
+            )
+        elif d_mdf < -5:
+            emg_freq.append(
+                "La MDF è diminuita: possibile rallentamento della conduzione o presenza di fatica muscolare."
+            )
+
+    if np.isfinite(d_mpf):
+        if d_mpf > 5:
+            emg_freq.append(
+                "La MPF è aumentata, confermando uno spostamento dello spettro verso frequenze più alte."
+            )
+        elif d_mpf < -5:
+            emg_freq.append(
+                "La MPF è diminuita, suggerendo uno spostamento dello spettro verso frequenze più basse."
+            )
+
+    if emg_freq:
+        parts.append("<b>📊 EMG – frequenza</b><br/>" + "<br/>".join([f"• {x}" for x in emg_freq]))
+
+    # =========================
+    # COORDINAZIONE
+    # =========================
+    coord = []
+    if np.isfinite(d_cci):
+        if d_cci < -5:
+            coord.append(
+                "La co-contrazione è diminuita: questo può riflettere un pattern motorio più efficiente, con minore attivazione antagonista non necessaria."
+            )
+        elif d_cci > 5:
+            coord.append(
+                "La co-contrazione è aumentata: questo può riflettere una maggiore rigidità articolare o una strategia di stabilizzazione."
+            )
+
+    if coord:
+        parts.append("<b>🤝 Coordinazione</b><br/>" + "<br/>".join([f"• {x}" for x in coord]))
+
+    # =========================
+    # EFFICIENZA
+    # =========================
+    eff = []
+    if np.isfinite(d_eff):
+        if d_eff > 10:
+            eff.append(
+                "L’efficienza neuromuscolare è aumentata: il soggetto produce più forza per unità di attivazione EMG normalizzata."
+            )
+        elif d_eff < -10:
+            eff.append(
+                "L’efficienza neuromuscolare è diminuita: per produrre la forza osservata è richiesta una maggiore attivazione relativa."
+            )
+
+    if eff:
+        parts.append("<b>🧠 Efficienza neuromuscolare</b><br/>" + "<br/>".join([f"• {x}" for x in eff]))
+
+    # =========================
+    # TIMING
+    # =========================
+    timing = []
+    if np.isfinite(d_onset):
+        if d_onset < -5:
+            timing.append(
+                "L’onset EMG è anticipato: l’attivazione inizia prima rispetto alla condizione PRE."
+            )
+        elif d_onset > 5:
+            timing.append(
+                "L’onset EMG è ritardato. Questo dato va interpretato con cautela, perché dipende dal criterio di soglia, dalla baseline e dalla qualità del segnale."
+            )
+
+    if timing:
+        parts.append("<b>⏱ Timing</b><br/>" + "<br/>".join([f"• {x}" for x in timing]))
+
+    # =========================
+    # SINTESI FINALE
+    # =========================
+    sintesi = []
+
+    miglioramento_forza = (
+        (np.isfinite(d_force_peak) and d_force_peak > 10) or
+        (np.isfinite(d_force_mvc) and d_force_mvc > 10) or
+        (np.isfinite(d_rfd) and d_rfd > 20)
+    )
+
+    miglioramento_attivazione = (
+        (np.isfinite(d_rms_norm) and d_rms_norm > 10) or
+        (np.isfinite(d_rms) and d_rms > 10) or
+        (np.isfinite(d_rms_200) and d_rms_200 > 10)
+    )
+
+    miglioramento_efficienza = np.isfinite(d_eff) and d_eff > 10
+
+    if miglioramento_forza and miglioramento_attivazione:
+        sintesi.append(
+            "Nel complesso, il quadro è compatibile con un miglioramento neuromuscolare post-intervento, caratterizzato da aumento della forza e da una modifica favorevole dell’attivazione EMG."
+        )
+    elif miglioramento_forza:
+        sintesi.append(
+            "Nel complesso, il quadro mostra soprattutto un miglioramento meccanico della prestazione di forza."
+        )
+    elif miglioramento_attivazione:
+        sintesi.append(
+            "Nel complesso, il quadro mostra soprattutto una modifica del pattern di attivazione neuromuscolare."
+        )
+
+    if miglioramento_efficienza:
+        sintesi.append(
+            "L’aumento dell’efficienza neuromuscolare suggerisce che il sistema produce più forza a fronte di un costo neurale relativo più favorevole."
+        )
+
+    if not sintesi:
+        sintesi.append(
+            "Non emergono variazioni univoche e fortemente coerenti in tutte le metriche principali; il risultato va quindi interpretato con cautela e integrato con l’ispezione dei singoli trial."
+        )
+
+    parts.append("<b>📌 Sintesi conclusiva</b><br/>" + "<br/>".join([f"• {x}" for x in sintesi]))
+
+    return "<br/><br/>".join(parts)
 
 def create_pdf_report(summary_df, pre_details=None, post_details=None):
     buffer = BytesIO()
 
-    doc = SimpleDocTemplate(buffer)
+    doc = SimpleDocTemplate(
+        buffer,
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=36
+    )
+
     styles = getSampleStyleSheet()
+
+    from reportlab.lib.styles import ParagraphStyle
+
+    styles.add(ParagraphStyle(
+        name="TitleCenter",
+        parent=styles["Title"],
+        alignment=1,
+        spaceAfter=14
+    ))
+
+    styles.add(ParagraphStyle(
+        name="SectionTitle",
+        parent=styles["Heading2"],
+        spaceBefore=10,
+        spaceAfter=8
+    ))
+
+    styles.add(ParagraphStyle(
+        name="BodyTextCustom",
+        parent=styles["Normal"],
+        fontSize=9,
+        leading=13,
+        spaceAfter=6
+    ))
+
     elements = []
 
     # Titolo
-    elements.append(Paragraph("Report EMG + Forza PRE vs POST", styles["Title"]))
-    elements.append(Spacer(1, 12))
+    elements.append(Paragraph("Report EMG + Forza PRE vs POST", styles["TitleCenter"]))
+    elements.append(Spacer(1, 8))
 
-    # Tabella risultati
+    # =========================
+    # Summary table
+    # =========================
+    elements.append(Paragraph("Risultati sintetici", styles["SectionTitle"]))
+
     df_print = summary_df.reset_index().copy()
     df_print = df_print.round(3)
     df_print.columns = ["Parametro", "PRE", "POST", "Delta", "Delta %"]
@@ -1218,305 +2036,67 @@ def create_pdf_report(summary_df, pre_details=None, post_details=None):
 
     data = [df_print.columns.tolist()] + df_print.values.tolist()
 
-    table = Table(data, colWidths=[140, 80, 80, 80, 80])
+    table = Table(data, colWidths=[150, 70, 70, 70, 70])
     table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2c3e50")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
         ("ALIGN", (1, 1), (-1, -1), "CENTER"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("BACKGROUND", (0, 1), (-1, -1), colors.whitesmoke),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
     ]))
 
     elements.append(table)
     elements.append(Spacer(1, 16))
 
+    # =========================
+    # Guida breve
+    # =========================
+    elements.append(Paragraph("Guida sintetica alle metriche", styles["SectionTitle"]))
+
     guida = """
-    <b>GUIDA INTERPRETATIVA prova</b><br/><br/>
+    <b>EMG – ampiezza</b><br/>
+    RMS = ampiezza efficace del segnale EMG; IEMG = contenuto totale di attività nel tempo; RMS 0–200 ms = attivazione iniziale rapida.<br/><br/>
 
-   🧠 1. STRUTTURA GENERALE
-PRE_mean → media dei trial prima
-POST_mean → media dopo
-Delta → differenza assoluta
-Delta_% → variazione percentuale
+    <b>EMG – frequenza</b><br/>
+    MDF e MPF descrivono la distribuzione spettrale del segnale e sono utili per interpretare fatica e qualità dell’attivazione.<br/><br/>
 
-👉 Analisi aggregata multi-trial (approccio scientifico standard)
+    <b>Coordinazione</b><br/>
+    CCI descrive la co-contrazione tra due muscoli, utile per valutare rigidità o efficienza del pattern motorio.<br/><br/>
 
-⚡ 2. EMG – DOMINIO DEL TEMPO
-🔹 RMS (Root Mean Square)
-📌 Formula
-RMS=
-N
-1
-	​
+    <b>Forza</b><br/>
+    Force peak = massimo istantaneo; Force MVC 500 ms = massima media su finestra mobile; Force CV = variabilità relativa; Force RFD = rapidità di sviluppo della forza; Force AUC = quantità totale di forza sopra soglia.<br/><br/>
 
-i=1
-∑
-N
-	​
+    <b>Normalizzazione EMG</b><br/>
+    RMS_norm e IEMG_norm esprimono il segnale EMG in rapporto al riferimento MVC EMG, rendendo più confrontabili i trial.<br/><br/>
 
-x
-i
-2
-	​
-
-	​
-
-🧠 Significato
-Ampiezza del segnale EMG
-Proporzionale a:
-numero unità motorie attive
-frequenza di scarica
-📊 Interpretazione
-↑ RMS → ↑ attivazione muscolare
-↓ RMS → ↓ attivazione o fatica
-📚 Riferimenti
-De Luca (1997)
-Farina et al. (2004)
-🔹 IEMG (Integrated EMG)
-📌 Formula
-IEMG=
-f
-s
-	​
-
-∑∣x(t)∣
-	​
-
-🧠 Significato
-Energia totale del segnale nel tempo
-Indice di lavoro muscolare complessivo
-📊 Interpretazione
-↑ IEMG → maggiore lavoro muscolare
-sensibile alla durata della contrazione
-📚 Riferimenti
-Merletti & Parker (2004)
-Konrad (2005)
-🔹 RMS 0–200 ms
-📌 Definizione
-
-RMS calcolato nei primi 200 ms dopo onset
-
-🧠 Significato
-Capacità di attivazione rapida
-reclutamento iniziale unità motorie
-📊 Interpretazione
-↑ → migliore drive neurale rapido
-fondamentale per esplosività
-📚 Riferimenti
-Aagaard et al. (2002)
-Del Vecchio et al. (2019)
-📊 3. EMG – DOMINIO DELLA FREQUENZA
-🔹 MDF (Median Frequency)
-📌 Formula
-∫
-0
-MDF
-	​
-
-PSD(f)df=
-2
-1
-	​
-
-∫
-0
-f
-max
-	​
-
-	​
-
-PSD(f)df
-🧠 Significato
-Frequenza che divide lo spettro in due
-indice di fatica e tipo di fibre
-📊 Interpretazione
-↓ MDF → fatica
-↑ MDF → maggiore attivazione veloce
-📚 Riferimenti
-De Luca (1984)
-Merletti (1999)
-🔹 MPF (Mean Power Frequency)
-📌 Formula
-MPF=
-∑PSD(f)
-∑f⋅PSD(f)
-	​
-
-🧠 Significato
-Centro di massa dello spettro
-📊 Interpretazione
-simile a MDF
-più sensibile al rumore
-📚 Riferimenti
-Phinyomark et al. (2012)
-🤝 4. CO-CONTRAZIONE
-🔹 CCI (Co-Contraction Index)
-📌 Formula
-CCI=
-A+B
-2⋅min(A,B)
-	​
-
-🧠 Significato
-quanto agonista e antagonista lavorano insieme
-📊 Interpretazione
-↑ CCI → rigidità / inefficienza
-↓ CCI → controllo più efficiente
-📚 Riferimenti
-Rudolph et al. (2000)
-💪 5. FORZA – METRICHE BASE
-🔹 Force_peak
-📌 Formula
-F
-peak
-	​
-
-=max(F(t))
-🧠 Significato
-Massima forza sviluppata (MVC)
-📚 Riferimenti
-Maffiuletti et al. (2016)
-🔹 Force_mean
-📌 Definizione
-
-Media della forza sopra soglia (es. 50%)
-
-🧠 Significato
-Capacità di mantenere forza
-🔹 Force_CV (Coefficient of Variation)
-📌 Formula
-CV=
-μ
-σ
-	​
-
-🧠 Significato
-stabilità del segnale
-📊 Interpretazione
-↑ CV → instabilità
-↓ CV → controllo fine
-📚 Riferimenti
-Enoka & Duchateau (2008)
-🔬 6. STABILITÀ DELLA FORZA
-🔹 Tremor 3–7 Hz
-📌 Formula
-∫
-3
-7
-	​
-
-PSD(f)df
-🧠 Significato
-oscillazioni fisiologiche
-controllo neuromuscolare
-📚 Riferimenti
-McAuley & Marsden (2000)
-🔹 Sample Entropy (SampEn)
-📌 Formula
-SampEn=−ln(
-B
-A
-	​
-
-)
-🧠 Significato
-complessità del segnale
-📊 Interpretazione
-↑ → controllo più adattativo
-↓ → segnale rigido
-📚 Riferimenti
-Richman & Moorman (2000)
-🔹 Force Stability Index
-📌 Formula
-Index=100⋅(0.45(1−CV)+0.45(1−Tremor)+0.10(SampEn))
-🧠 Significato
-indice sintetico di stabilità
-🚀 7. ESPLOSIVITÀ
-🔹 RFD (Rate of Force Development)
-📌 Formula
-RFD=
-Δt
-ΔF
-	​
-
-🧠 Significato
-velocità di sviluppo della forza
-📚 Riferimenti
-Maffiuletti et al. (2016)
-🔗 8. ACCOPPIAMENTO EMG–FORZA
-🔹 Correlazione EMG–Forza
-📌 Formula
-r=corr(EMG
-env
-	​
-
-,Force)
-🧠 Significato
-quanto EMG predice la forza
-📊 Interpretazione
-↑ → buona efficienza neuromuscolare
-↓ → inefficienza o rumore
-📚 Riferimenti
-Farina et al. (2014)
-⚙️ 9. NORMALIZZAZIONE EMG (MVC)
-🔹 Formula
-EMG
-norm
-	​
-
-=
-EMG
-MVC
-	​
-
-EMG
-	​
-
-🧠 Significato
-rende confrontabili soggetti/trial
-📊 Interpretazione
-1 = attivazione massima
-0.5 = 50% attivazione
-📚 Riferimenti
-Burden (2010)
-🧠 10. EFFICIENZA NEUROMUSCOLARE
-🔹 Formula
-Efficiency=
-EMG
-Force
-	​
-
-🧠 Significato
-quanta forza produci per unità di attivazione
-📊 Interpretazione
-↑ → sistema efficiente
-↓ → compensazioni o fatica
-📚 Riferimenti
-Moritani & deVries (1979)
-🧭 CONCLUSIONE
-
-👉 Il tuo sistema ora misura:
-
-attivazione muscolare
-fatica
-coordinazione
-stabilità
-efficienza
-esplosività
+    <b>Efficienza neuromuscolare</b><br/>
+    Rapporto tra forza prodotta e attivazione EMG normalizzata.
     """
-    elements.append(Paragraph(guida, styles["Normal"]))
-    elements.append(Spacer(1, 18))
 
-    # Grafici dal primo trial PRE e POST
+    elements.append(Paragraph(guida, styles["BodyTextCustom"]))
+    elements.append(Spacer(1, 12))
+
+    # =========================
+    # Interpretazione automatica
+    # =========================
+    elements.append(Paragraph("Interpretazione automatica", styles["SectionTitle"]))
+    interp_html = interpret_results_pdf(summary_df)
+    elements.append(Paragraph(interp_html, styles["BodyTextCustom"]))
+    elements.append(Spacer(1, 14))
+
+    # =========================
+    # Grafici
+    # =========================
     if pre_details and post_details and len(pre_details) > 0 and len(post_details) > 0:
         pre0 = pre_details[0]
         post0 = post_details[0]
 
-        # 1. EMG filtrato
+        elements.append(Paragraph("Grafici rappresentativi", styles["SectionTitle"]))
+
+        # EMG filtrato
         fig = plt.figure(figsize=(7, 3))
         plt.plot(pre0["t_s"], pre0["emg_filt"], label="PRE")
         plt.plot(post0["t_s"], post0["emg_filt"], label="POST")
@@ -1524,11 +2104,11 @@ esplosività
         plt.xlabel("Tempo (s)")
         plt.ylabel("uV")
         plt.legend()
-        elements.append(Paragraph("Grafico 1. EMG filtrato PRE vs POST", styles["Heading3"]))
-        elements.append(fig_to_image(fig, width=500, height=220))
-        elements.append(Spacer(1, 12))
+        elements.append(Paragraph("Figura 1. EMG filtrato", styles["BodyTextCustom"]))
+        elements.append(fig_to_image(fig, width=500, height=210))
+        elements.append(Spacer(1, 10))
 
-        # 2. Inviluppo EMG
+        # Inviluppo
         fig = plt.figure(figsize=(7, 3))
         plt.plot(pre0["t_s"], pre0["emg_env"], label="PRE")
         plt.plot(post0["t_s"], post0["emg_env"], label="POST")
@@ -1540,11 +2120,11 @@ esplosività
         plt.xlabel("Tempo (s)")
         plt.ylabel("Envelope")
         plt.legend()
-        elements.append(Paragraph("Grafico 2. Inviluppo EMG PRE vs POST", styles["Heading3"]))
-        elements.append(fig_to_image(fig, width=500, height=220))
-        elements.append(Spacer(1, 12))
+        elements.append(Paragraph("Figura 2. Inviluppo EMG", styles["BodyTextCustom"]))
+        elements.append(fig_to_image(fig, width=500, height=210))
+        elements.append(Spacer(1, 10))
 
-        # 3. PSD
+        # PSD
         fig = plt.figure(figsize=(7, 3))
         if len(pre0["f_psd"]) > 0 and len(pre0["p_psd"]) > 0:
             plt.semilogy(pre0["f_psd"], pre0["p_psd"], label="PRE")
@@ -1554,11 +2134,11 @@ esplosività
         plt.xlabel("Hz")
         plt.ylabel("Power")
         plt.legend()
-        elements.append(Paragraph("Grafico 3. PSD PRE vs POST", styles["Heading3"]))
-        elements.append(fig_to_image(fig, width=500, height=220))
-        elements.append(Spacer(1, 12))
+        elements.append(Paragraph("Figura 3. Spettro di potenza EMG", styles["BodyTextCustom"]))
+        elements.append(fig_to_image(fig, width=500, height=210))
+        elements.append(Spacer(1, 10))
 
-        # 4. Forza
+        # Forza
         if pre0["force_interp"] is not None or post0["force_interp"] is not None:
             fig = plt.figure(figsize=(7, 3))
             if pre0["force_interp"] is not None:
@@ -1573,14 +2153,28 @@ esplosività
             plt.xlabel("Tempo (s)")
             plt.ylabel("N")
             plt.legend()
-            elements.append(Paragraph("Grafico 4. Forza PRE vs POST", styles["Heading3"]))
-            elements.append(fig_to_image(fig, width=500, height=220))
-            elements.append(Spacer(1, 12))
+            elements.append(Paragraph("Figura 4. Traccia di forza", styles["BodyTextCustom"]))
+            elements.append(fig_to_image(fig, width=500, height=210))
+            elements.append(Spacer(1, 10))
+
+    # =========================
+    # Bibliografia
+    # =========================
+    elements.append(Paragraph("Riferimenti bibliografici essenziali", styles["SectionTitle"]))
+
+    refs = """
+    1. De Luca CJ. The use of surface electromyography in biomechanics.<br/>
+    2. Burden A. How should we normalize electromyograms obtained from healthy participants?<br/>
+    3. Maffiuletti NA et al. Rate of force development: physiological and methodological considerations.<br/>
+    4. Richman JS, Moorman JR. Physiological time-series analysis using approximate entropy and sample entropy.<br/>
+    5. McAuley JH, Marsden CD. Physiological and pathological tremors and rhythmic central motor control.
+    """
+
+    elements.append(Paragraph(refs, styles["BodyTextCustom"]))
 
     doc.build(elements)
     buffer.seek(0)
     return buffer
-
 st.set_page_config(page_title="EMG + Forza Batch PRE vs POST", layout="wide")
 st.title("EMG + Forza Batch PRE vs POST")
 
@@ -1781,16 +2375,18 @@ show_grouped_summary(summary_df, "Timing / acquisizione", TIMING_METRICS)
 
 st.subheader("📘 Guida interpretativa dei risultati")
 
-st.markdown(GUIDA_COMPLETA)
+
+
+
 GUIDA_COMPLETA = """
 # 🧠 1. STRUTTURA GENERALE
 
-- **PRE_mean** → media dei trial prima  
-- **POST_mean** → media dopo  
-- **Delta** → differenza assoluta  
-- **Delta_%** → variazione percentuale  
+- **PRE_mean** → media dei trial prima
+- **POST_mean** → media dei trial dopo
+- **Delta** → differenza assoluta
+- **Delta_%** → variazione percentuale
 
-👉 Analisi aggregata multi-trial
+👉 Serve a confrontare in modo aggregato l’effetto dell’intervento tra condizioni.
 
 ---
 
@@ -1798,146 +2394,380 @@ GUIDA_COMPLETA = """
 
 ## 🔹 RMS (Root Mean Square)
 
-**Formula:**
-
+**Formula**
 $$
 RMS = \\sqrt{\\frac{1}{N} \\sum_{i=1}^{N} x_i^2}
 $$
 
-**Significato:**
-- Ampiezza del segnale EMG  
-- Numero unità motorie attive  
+**A cosa serve**
+👉 Misura l’ampiezza efficace del segnale EMG.  
+👉 È uno degli indicatori più usati dell’attivazione neuromuscolare.
 
-**Interpretazione:**
-- ↑ RMS → ↑ attivazione  
-- ↓ RMS → fatica o minore reclutamento  
+**Significato fisiologico**
+- aumenta quando cresce il reclutamento delle unità motorie
+- aumenta quando cresce il drive neurale complessivo
 
-📚 De Luca (1997), Farina et al. (2004)
+**Interpretazione**
+- ↑ RMS → maggiore attivazione muscolare
+- ↓ RMS → minore attivazione o possibile fatica / inefficienza
+
+**Riferimenti**
+- De Luca, 1997
+- Farina et al., 2004
 
 ---
 
-## 🔹 IEMG
+## 🔹 IEMG (Integrated EMG)
 
-**Formula:**
-
+**Formula**
 $$
 IEMG = \\frac{\\sum |x(t)|}{f_s}
 $$
 
-**Significato:**
-- Energia totale del segnale  
+**A cosa serve**
+👉 Misura il contenuto totale di attività EMG nel tempo.  
+👉 È utile per quantificare il “lavoro elettrico” totale del muscolo nella finestra analizzata.
 
-📚 Merletti & Parker (2004)
+**Significato fisiologico**
+- combina ampiezza e durata della contrazione
+- è sensibile all’attivazione totale sviluppata nel tempo
+
+**Interpretazione**
+- ↑ IEMG → maggiore lavoro muscolare totale
+- ↓ IEMG → minore lavoro o finestra meno attiva
+
+**Riferimenti**
+- De Luca, 1997
+- Merletti & Parker, 2004
 
 ---
 
 ## 🔹 RMS 0–200 ms
 
-- RMS nei primi 200 ms  
-- indice di esplosività neurale  
+**A cosa serve**
+👉 Misura l’attivazione EMG nella fase iniziale della contrazione.  
+👉 È molto utile per valutare la componente esplosiva del reclutamento.
 
-📚 Aagaard et al. (2002)
+**Significato fisiologico**
+- riflette la rapidità di attivazione neurale
+- si collega bene alla capacità di sviluppare forza rapidamente
+
+**Interpretazione**
+- ↑ RMS 0–200 ms → migliore attivazione iniziale
+- ↓ RMS 0–200 ms → risposta iniziale meno esplosiva
+
+**Riferimenti**
+- Aagaard et al., 2002
+- Maffiuletti et al., 2016
 
 ---
 
-# 📊 3. FREQUENZA
+# 📊 3. EMG – DOMINIO DELLA FREQUENZA
 
-## 🔹 MDF
+## 🔹 MDF (Median Frequency)
 
+**Formula**
 $$
-\\int_0^{MDF} PSD(f) df = \\frac{1}{2} \\int PSD(f) df
+\\int_0^{MDF} PSD(f)\\,df = \\frac{1}{2}\\int_0^{f_{max}} PSD(f)\\,df
 $$
 
-👉 Fatica e tipo fibre
+**A cosa serve**
+👉 Valuta come è distribuita la potenza del segnale EMG nello spettro.  
+👉 È molto usata negli studi di fatica.
+
+**Significato fisiologico**
+- legata alla velocità di conduzione delle fibre
+- influenzata dallo stato di fatica e dal tipo di reclutamento
+
+**Interpretazione**
+- ↓ MDF → possibile fatica o rallentamento della conduzione
+- ↑ MDF → attivazione relativamente più “veloce”
+
+**Riferimenti**
+- De Luca, 1997
 
 ---
 
-## 🔹 MPF
+## 🔹 MPF (Mean Power Frequency)
 
+**Formula**
 $$
 MPF = \\frac{\\sum f \\cdot PSD(f)}{\\sum PSD(f)}
 $$
 
-👉 Centro dello spettro
+**A cosa serve**
+👉 Fornisce il “baricentro” dello spettro di potenza EMG.  
+👉 È utile per valutare modifiche della distribuzione spettrale.
+
+**Significato fisiologico**
+- riflette velocità di conduzione, tipo di fibre e stato di fatica
+- è spesso interpretata insieme a MDF
+
+**Interpretazione**
+- ↓ MPF → possibile fatica / rallentamento
+- ↑ MPF → attivazione relativamente più rapida
+
+**Riferimenti**
+- De Luca, 1997
 
 ---
 
-# 🤝 4. CCI
+# 🤝 4. CO-CONTRAZIONE
 
+## 🔹 CCI (Co-Contraction Index)
+
+**Formula**
 $$
 CCI = \\frac{2 \\cdot min(A,B)}{A+B}
 $$
 
-👉 Efficienza motoria
+**A cosa serve**
+👉 Misura quanto due muscoli agonista/antagonista lavorano insieme.  
+👉 Utile per valutare stabilizzazione articolare ed efficienza motoria.
+
+**Significato fisiologico**
+- valori alti indicano maggiore co-attivazione
+- può riflettere rigidità, stabilizzazione o strategia compensatoria
+
+**Interpretazione**
+- ↑ CCI → maggiore co-contrazione
+- ↓ CCI → minore co-contrazione, spesso maggiore efficienza
+
+**Riferimenti**
+- De Luca, 1997
 
 ---
 
-# 💪 5. FORZA
+# 💪 5. FORZA – METRICHE PRINCIPALI
 
 ## 🔹 Force_peak
+
+**Formula**
 $$
 F_{peak} = max(F(t))
 $$
 
-## 🔹 Force_CV
+**A cosa serve**
+👉 È il massimo valore istantaneo di forza.  
+👉 Rappresenta il picco meccanico massimo osservato.
+
+**Interpretazione**
+- ↑ Force_peak → maggiore forza massima espressa
+
+**Riferimenti**
+- Maffiuletti et al., 2016
+
+---
+
+## 🔹 Force_MVC_500ms
+
+**Definizione**
+Massima media di forza su una finestra mobile di 500 ms.
+
+**A cosa serve**
+👉 È una stima più robusta della MVC rispetto al singolo picco.  
+👉 Riduce l’influenza di spike e artefatti.
+
+**Interpretazione**
+- ↑ → migliore capacità di sostenere una forza elevata
+
+**Riferimenti**
+- approccio coerente con la letteratura sulle MVC isometriche e con le raccomandazioni metodologiche sull’RFD
+
+---
+
+## 🔹 Force_top5_mean
+
+**Definizione**
+Media del 5% dei campioni di forza più alti.
+
+**A cosa serve**
+👉 Fornisce una misura robusta della parte alta del segnale, meno sensibile al singolo outlier.
+
+---
+
+## 🔹 Force_mean_above_50pct
+
+**Definizione**
+Media della forza per i campioni sopra il 50% del picco.
+
+**A cosa serve**
+👉 Quantifica la forza nel tratto “utile” e confrontabile della contrazione.
+
+---
+
+## 🔹 Force_CV / Force_CV_above_50pct
+
+**Formula**
 $$
 CV = \\frac{\\sigma}{\\mu}
 $$
 
+**A cosa serve**
+👉 Misura la stabilità della forza.  
+👉 È uno degli indici più usati per la force steadiness.
+
+**Interpretazione**
+- ↑ CV → maggiore variabilità / minore stabilità
+- ↓ CV → maggiore stabilità
+
+**Riferimenti**
+- Enoka & Duchateau, 2008
+
 ---
 
-# 🔬 6. STABILITÀ
+## 🔹 Force_AUC_above_50pct
 
-## 🔹 Tremor 3–7 Hz
-Energia nel range fisiologico
+**Formula**
+$$
+AUC = \\sum F(t) \\cdot \\Delta t
+$$
 
-## 🔹 SampEn
+**A cosa serve**
+👉 Misura la quantità totale di forza sviluppata sopra soglia.  
+👉 È utile se vuoi quantificare il “contenuto” complessivo della contrazione.
+
+---
+
+# 🔬 6. STABILITÀ DELLA FORZA
+
+## 🔹 Force_Tremor_3_7Hz
+
+**Formula**
+Integrazione della PSD della forza tra 3 e 7 Hz.
+
+**A cosa serve**
+👉 Quantifica le oscillazioni lente della forza in una banda legata al tremore fisiologico / al controllo motorio.
+
+**Interpretazione**
+- ↑ tremor power → maggiori oscillazioni / possibile minore steadiness
+- ↓ tremor power → contrazione più stabile
+
+**Riferimenti**
+- McAuley & Marsden, 2000
+
+---
+
+## 🔹 Force_SampEn
+
+**Formula**
 $$
 SampEn = -\\ln(A/B)
 $$
 
+**A cosa serve**
+👉 Misura l’irregolarità / complessità del segnale di forza.  
+👉 È utile per descrivere il controllo motorio oltre alla sola variabilità.
+
+**Interpretazione**
+- valori più alti → maggiore complessità / minore regolarità
+- valori più bassi → segnale più prevedibile / più rigido
+
+**Riferimenti**
+- Richman & Moorman, 2000
+
 ---
 
-# 🚀 7. RFD
+## 🔹 Force_Stability_Index
 
+**Definizione**
+Indice composito costruito combinando variabilità, tremore e complessità.
+
+**A cosa serve**
+👉 Riassume in un singolo numero la qualità di stabilità della forza.
+
+**Nota**
+È un indice composito personalizzato: utile, ma va descritto esplicitamente nella sezione Metodi.
+
+---
+
+# 🚀 7. ESPLOSIVITÀ
+
+## 🔹 Force_RFD_200ms
+
+**Formula**
 $$
 RFD = \\frac{\\Delta F}{\\Delta t}
 $$
 
-👉 Esplosività
+**A cosa serve**
+👉 Misura quanto rapidamente il soggetto sviluppa forza.  
+👉 È una metrica chiave dell’esplosività neuromuscolare.
+
+**Interpretazione**
+- ↑ RFD → migliore capacità esplosiva
+
+**Riferimenti**
+- Maffiuletti et al., 2016
 
 ---
 
-# 🔗 8. EMG–FORZA
+# 🔗 8. NORMALIZZAZIONE EMG
 
+## 🔹 RMS_norm / IEMG_norm
+
+**Formula**
 $$
-r = corr(EMG, Force)
+EMG_{norm} = \\frac{EMG}{EMG_{MVC}} \\times 100
 $$
+
+**A cosa serve**
+👉 Rende confrontabili trial e sessioni diverse.  
+👉 Riduce l’effetto di fattori strumentali, posizionamento elettrodi e impedenza cutanea.
+
+**Interpretazione**
+- 100% = livello EMG di riferimento MVC
+- >100% = possibile superamento del riferimento scelto o riferimento PRE basso
+
+**Riferimenti**
+- Burden, 2010
 
 ---
 
-# ⚙️ 9. NORMALIZZAZIONE
+# 🧠 9. EFFICIENZA NEUROMUSCOLARE
 
+## 🔹 Neuromuscular_Efficiency
+
+**Formula**
 $$
-EMG_{norm} = \\frac{EMG}{EMG_{MVC}}
+Efficiency = \\frac{Force\\_MVC\\_500ms}{RMS_{norm}}
 $$
+
+**A cosa serve**
+👉 Stima quanta forza viene prodotta per unità di attivazione EMG normalizzata.  
+👉 È utile per capire se il sistema neuromuscolare sta diventando più “economico”.
+
+**Interpretazione**
+- ↑ efficienza → più forza con minore costo neurale relativo
+- ↓ efficienza → maggiore attivazione per produrre la stessa forza
+
+**Nota**
+Il concetto di rapporto EMG–forza è consolidato; il nome specifico dell’indice va sempre definito chiaramente nei Metodi.
+
+**Riferimenti**
+- De Luca, 1997
+- Burden, 2010
 
 ---
 
-# 🧠 10. EFFICIENZA
+# 📚 10. RIFERIMENTI BIBLIOGRAFICI ESSENZIALI
 
-$$
-Efficiency = \\frac{Force}{EMG}
-$$
+1. De Luca CJ. The use of surface electromyography in biomechanics.
+2. Burden A. How should we normalize electromyograms obtained from healthy participants?
+3. Maffiuletti NA et al. Rate of force development: physiological and methodological considerations.
+4. Richman JS, Moorman JR. Physiological time-series analysis using approximate entropy and sample entropy.
+5. McAuley JH, Marsden CD. Physiological and pathological tremors and rhythmic central motor control.
 
 ---
 
-👉 Sistema completo di analisi neuromuscolare
+👉 Questa pipeline consente di analizzare attivazione, frequenza, coordinazione, stabilità, esplosività ed efficienza neuromuscolare in modo integrato.
 """
 
 
+st.markdown(GUIDA_COMPLETA)
+
 st.subheader("Interpretazione automatica")
-st.markdown(interpret_results(summary_df))
+show_interpretation_dashboard(summary_df)
 
 use_notch_100 = st.sidebar.checkbox("Notch 100 Hz (vibrazione)", value=False)
 
