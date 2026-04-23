@@ -505,6 +505,7 @@ def interpret_results(summary_df):
 
     return "\n".join(text)
 
+from scipy.integrate import trapezoid
 
 def tremor_power(force_segment, fs, band=(3.0, 7.0)):
     force_segment = np.asarray(force_segment, dtype=float)
@@ -520,7 +521,7 @@ def tremor_power(force_segment, fs, band=(3.0, 7.0)):
     if not np.any(m):
         return np.nan
 
-    return float(np.trapz(pxx[m], f[m]))
+    return float(trapezoid(pxx[m], f[m]))
 
 
 def sample_entropy(x, m=2, r=None):
