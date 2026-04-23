@@ -2056,6 +2056,43 @@ def create_pdf_report(summary_df, pre_details=None, post_details=None):
     # =========================
     elements.append(Paragraph("Guida sintetica alle metriche", styles["SectionTitle"]))
 
+    protocollo_pdf = """
+<b>Protocollo sperimentale</b><br/><br/>
+
+<b>Obiettivo dello studio</b><br/>
+Valutare se l’esposizione a vibrazione segmentale ad alta frequenza produce modificazioni della performance neuromuscolare osservabili nel segnale EMG e nella forza durante una contrazione volontaria massimale (MVC).<br/><br/>
+
+<b>Setup sperimentale</b><br/>
+Il soggetto esegue una presa massimale su una maniglia strumentata con due sensori estensimetrici:
+- Push: faccia anteriore della maniglia
+- Pull: faccia posteriore della maniglia<br/><br/>
+
+Durante la prova vengono registrati:
+- segnale di forza
+- segnale EMG del canale 1
+- segnale EMG del canale 2<br/><br/>
+
+<b>Sequenza delle misure</b><br/>
+1. Fase PRE: tre prove di MVC della durata di alcuni secondi<br/>
+2. Intervento vibrazionale: tre esposizioni da 10 minuti a 100 Hz<br/>
+3. Fase POST: ripetizione delle prove di MVC con lo stesso setup<br/><br/>
+
+<b>Cosa viene confrontato</b><br/>
+L’analisi confronta PRE e POST per valutare modifiche di:
+- forza massima
+- rapidità di sviluppo della forza
+- attivazione EMG
+- co-contrazione
+- stabilità della forza
+- efficienza neuromuscolare<br/><br/>
+
+<b>Ipotesi fisiologica</b><br/>
+La vibrazione segmentale può indurre facilitazione neuromuscolare, con possibile aumento del reclutamento, della sincronizzazione e della prestazione meccanica.<br/><br/>
+"""
+
+    elements.append(Paragraph("Protocollo sperimentale", styles["SectionTitle"]))
+    elements.append(Paragraph(protocollo_pdf, styles["BodyTextCustom"]))
+    elements.append(Spacer(1, 12))
     guida = """
     <b>EMG – ampiezza</b><br/>
     RMS = ampiezza efficace del segnale EMG; IEMG = contenuto totale di attività nel tempo; RMS 0–200 ms = attivazione iniziale rapida.<br/><br/>
@@ -2375,8 +2412,127 @@ show_grouped_summary(summary_df, "Timing / acquisizione", TIMING_METRICS)
 
 st.subheader("📘 Guida interpretativa dei risultati")
 
+PROTOCOLLO_STUDIO = """
+# 📋 Protocollo sperimentale
 
+## Obiettivo dello studio
+L’obiettivo dell’analisi è valutare se l’esposizione a vibrazione segmentale ad alta frequenza produce modificazioni nella performance neuromuscolare del soggetto, osservabili sia nel segnale elettromiografico (EMG) sia nella forza espressa durante una contrazione volontaria massimale (MVC).
 
+In particolare, vogliamo capire se dopo l’intervento si osservano:
+
+- aumento della forza massima
+- aumento della rapidità di sviluppo della forza
+- aumento o riorganizzazione dell’attivazione EMG
+- riduzione della co-contrazione non necessaria
+- miglioramento della stabilità della forza
+- miglioramento dell’efficienza neuromuscolare
+
+---
+
+## Setup sperimentale
+Il soggetto esegue una presa massimale su una maniglia strumentata.
+
+La maniglia è dotata di due sensori estensimetrici:
+- **Push**: sensore sulla faccia anteriore della maniglia
+- **Pull**: sensore sulla faccia posteriore della maniglia
+
+Il segnale di forza può essere costruito a partire dai due canali in modi diversi. Nel protocollo di presa, la scelta più rappresentativa della forza totale di grip è generalmente la somma:
+
+$$
+F_{grip}(t) = Push(t) + Pull(t)
+$$
+
+Durante la prova, due elettrodi di superficie registrano il segnale EMG su due muscoli, per esempio flessore ed estensore dell’avambraccio.
+
+---
+
+## Sequenza delle misure
+Il protocollo è strutturato in due fasi principali:
+
+### 1. Fase PRE
+Il soggetto esegue tre prove di contrazione volontaria massimale (MVC) della durata di alcuni secondi.
+
+Durante ogni prova vengono registrati:
+- segnale di forza
+- segnale EMG del canale 1
+- segnale EMG del canale 2
+
+### 2. Intervento vibrazionale
+Il soggetto viene sottoposto a tre sessioni di esposizione a vibrazione segmentale mediante dispositivo strumentale.
+
+Parametri principali dell’intervento:
+- durata di ciascuna esposizione: **10 minuti**
+- frequenza vibrazione: **100 Hz**
+- ampiezza: dell’ordine di alcuni micrometri
+
+### 3. Fase POST
+Dopo le esposizioni a vibrazione, il soggetto ripete le prove di MVC con lo stesso setup sperimentale.
+
+Anche in questa fase vengono registrati:
+- segnale di forza
+- segnale EMG del canale 1
+- segnale EMG del canale 2
+
+---
+
+## Cosa confrontiamo
+L’analisi confronta la condizione **PRE** e la condizione **POST**.
+
+Per ogni trial vengono calcolate metriche relative a:
+
+### EMG
+- ampiezza del segnale
+- lavoro EMG totale
+- contenuto spettrale
+- co-contrazione
+- attivazione iniziale
+
+### Forza
+- forza massima
+- forza media sostenuta
+- stabilità della forza
+- esplosività
+- tremore
+- area sopra soglia
+
+### Integrazione EMG–Forza
+- efficienza neuromuscolare
+- correlazione tra attivazione e output meccanico
+
+---
+
+## Ipotesi fisiologica
+L’ipotesi di lavoro è che la vibrazione segmentale possa modificare il comportamento neuromuscolare attraverso:
+
+- facilitazione del drive afferente
+- aumento del reclutamento delle unità motorie
+- miglioramento della sincronizzazione
+- cambiamento del pattern di attivazione agonista/antagonista
+- aumento dell’efficienza del sistema neuromuscolare
+
+Di conseguenza, nel POST potremmo osservare:
+- incremento della forza
+- aumento dell’RFD
+- aumento di RMS e/o RMS normalizzato
+- modifiche favorevoli di MDF e MPF
+- riduzione della CCI
+- migliore steadiness della forza
+
+---
+
+## Logica dell’analisi
+Per ridurre la variabilità e rendere i confronti più robusti:
+
+- i trial vengono analizzati separatamente
+- si calcolano medie PRE e POST
+- molte metriche di forza vengono valutate solo nella porzione del segnale sopra una soglia relativa (es. 50% del picco)
+- l’EMG può essere normalizzato su un riferimento MVC EMG
+- l’interpretazione finale integra insieme forza, EMG, coordinazione e stabilità
+
+---
+"""
+
+st.markdown(PROTOCOLLO_STUDIO)
 
 GUIDA_COMPLETA = """
 # 🧠 1. STRUTTURA GENERALE
